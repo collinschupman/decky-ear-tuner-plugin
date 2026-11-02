@@ -1,0 +1,6 @@
+native/build/
+dist/
+dist-web/
+node_modules/
+tmp/
+.venv/

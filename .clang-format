@@ -1,0 +1,25 @@
+---
+BasedOnStyle: Google
+Language: Cpp
+ColumnLimit: 100
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -1
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: false
+  BeforeCatch: false
+  BeforeElse: false
+BreakConstructorInitializers: BeforeComma
+PackConstructorInitializers: Never
+DerivePointerAlignment: false
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive
+InsertBraces: true

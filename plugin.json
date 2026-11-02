@@ -1,0 +1,11 @@
+{
+  "name": "Ear Tuner",
+  "author": "Collin Schupman",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["audio", "accessibility", "hearing", "dsp", "pipewire"],
+    "description": "Apply independent left and right Ear Tuner profiles. Boost low frequencies, voices, high pitches, or quiet sounds through a native PipeWire DSP filter that works across games and applications.",
+    "image": "https://raw.githubusercontent.com/collinschupman/decky-ear-tuner-plugin/main/assets/preview.png"
+  }
+}

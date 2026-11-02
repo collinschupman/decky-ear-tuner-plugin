@@ -1,0 +1,380 @@
+:root {
+  color: #f5f7fa;
+  font-family: 'Trebuchet MS', sans-serif;
+}
+
+body.earTunerStandalone {
+  background: #101820;
+  min-height: 100vh;
+  padding: 0;
+}
+
+.deckyPreviewViewport {
+  background:
+    linear-gradient(115deg, rgba(20, 35, 46, 0.45), rgba(6, 10, 14, 0.92)),
+    repeating-linear-gradient(135deg, #172632 0 2px, #12202a 2px 18px);
+  display: flex;
+  justify-content: flex-end;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.deckyPreviewBackdrop {
+  align-self: center;
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: 48px;
+}
+
+.deckyPreviewBackdrop span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+}
+
+.deckyPreviewBackdrop strong {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 30px;
+  font-weight: 400;
+}
+
+.deckyPreviewQuickAccess {
+  --decky-accent: #1a9fff;
+  background: rgba(27, 35, 43, 0.985);
+  box-shadow: -18px 0 45px rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: 58px 50px minmax(0, 1fr) 42px;
+  height: 100vh;
+  max-height: 800px;
+  min-height: 640px;
+  position: relative;
+  width: min(260px, 100vw);
+}
+
+.deckyPreviewQuickAccess > header {
+  align-items: center;
+  background: #202a33;
+  display: grid;
+  grid-template-columns: 42px 1fr 52px;
+  padding: 0 12px;
+}
+
+.deckyPreviewQuickAccess > header h1 {
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.deckyPreviewQuickAccess > header time {
+  color: #c8d1d9;
+  font-size: 12px;
+  text-align: right;
+}
+
+.deckyPreviewQuickAccess > header button {
+  background: transparent;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  font-size: 35px;
+  padding: 0;
+  text-align: left;
+}
+
+.deckyPreviewQuickAccess > nav {
+  align-items: stretch;
+  background: #182128;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 0 12px;
+}
+
+.deckyPreviewQuickAccess > nav span {
+  align-items: center;
+  color: #89949e;
+  display: flex;
+  font-size: 18px;
+  justify-content: center;
+  position: relative;
+}
+
+.deckyPreviewQuickAccess > nav .selected {
+  color: #fff;
+}
+
+.deckyPreviewQuickAccess > nav .selected::after {
+  background: var(--decky-accent);
+  bottom: 0;
+  content: '';
+  height: 3px;
+  left: 9px;
+  position: absolute;
+  right: 9px;
+}
+
+.deckyPreviewContent {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px 0 20px;
+  scrollbar-color: #66717c transparent;
+  scrollbar-width: thin;
+}
+
+.deckyPreviewContent .earTunerPlugin.deckyPanel {
+  --accent: var(--decky-accent);
+  --line: rgba(255, 255, 255, 0.13);
+  --muted: #b8c2cc;
+  --text: #f5f7fa;
+  color: var(--text);
+  font-family: 'Trebuchet MS', sans-serif;
+}
+
+.deckyPreviewSection {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.11);
+  padding: 10px 14px 16px;
+}
+
+.deckyPreviewSection > h2 {
+  color: #b7c2cc;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.deckyPreviewSectionContent {
+  display: grid;
+  gap: 8px;
+}
+
+.deckyPreviewRow {
+  min-width: 0;
+}
+
+.deckyPreviewToggle,
+.deckyPreviewButtonItem {
+  align-items: center;
+  background: #303b45;
+  border: 0;
+  border-radius: 2px;
+  box-sizing: border-box;
+  color: #fff;
+  display: flex;
+  font: inherit;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 8px 12px;
+  width: 100%;
+}
+
+.deckyPreviewToggle.disabled,
+.deckyPreviewButtonItem:disabled,
+.deckyPreviewSlider.disabled,
+.deckyPreviewDialogButton:disabled {
+  opacity: 0.42;
+}
+
+.deckyPreviewItemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.deckyPreviewItemText strong,
+.deckyPreviewSlider > strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.deckyPreviewItemText small {
+  color: #aeb8c1;
+  font-size: 11px;
+}
+
+.deckyPreviewToggle input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.deckyPreviewToggleTrack {
+  background: #171d22;
+  border-radius: 11px;
+  flex: 0 0 38px;
+  height: 22px;
+  position: relative;
+}
+
+.deckyPreviewToggleTrack::after {
+  background: #d8dce0;
+  border-radius: 50%;
+  content: '';
+  height: 16px;
+  left: 3px;
+  position: absolute;
+  top: 3px;
+  transition: transform 120ms ease;
+  width: 16px;
+}
+
+.deckyPreviewToggle input:checked + .deckyPreviewToggleTrack {
+  background: var(--decky-accent);
+}
+
+.deckyPreviewToggle input:checked + .deckyPreviewToggleTrack::after {
+  transform: translateX(16px);
+}
+
+.deckyPreviewDialogButton {
+  background: #dcdedf;
+  border: 0;
+  border-radius: 2px;
+  color: #16202a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 8px 12px;
+  width: 100%;
+}
+
+.deckyPreviewSlider {
+  background: #303b45;
+  border-radius: 2px;
+  box-sizing: border-box;
+  padding: 10px 12px 8px;
+  width: 100%;
+}
+
+.deckyPreviewSlider input {
+  appearance: none;
+  background: linear-gradient(
+    to right,
+    var(--decky-accent) var(--slider-progress),
+    #151b20 var(--slider-progress)
+  );
+  border-radius: 3px;
+  height: 6px;
+  margin: 14px 0 5px;
+  width: 100%;
+}
+
+.deckyPreviewSlider input::-webkit-slider-thumb {
+  appearance: none;
+  background: #fff;
+  border: 2px solid var(--decky-accent);
+  border-radius: 50%;
+  height: 18px;
+  width: 18px;
+}
+
+.deckyPreviewNotches {
+  color: #aeb8c1;
+  display: flex;
+  font-size: 10px;
+  justify-content: space-between;
+}
+
+.deckyPreviewButtonItem {
+  cursor: pointer;
+}
+
+.deckyPreviewButtonItem > span:last-child {
+  color: #bbc4cc;
+  font-size: 24px;
+}
+
+.deckyPreviewQuickAccess > footer {
+  align-items: center;
+  background: #11181e;
+  display: flex;
+  font-size: 11px;
+  gap: 20px;
+  justify-content: flex-end;
+  padding: 0 14px;
+}
+
+.deckyPreviewQuickAccess kbd {
+  background: #f3f4f5;
+  border-radius: 50%;
+  color: #182028;
+  display: inline-grid;
+  font: inherit;
+  font-weight: 700;
+  height: 18px;
+  margin-right: 3px;
+  place-items: center;
+  width: 18px;
+}
+
+.deckyPreviewMenuScrim {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: absolute;
+  z-index: 10;
+}
+
+.deckyPreviewMenu {
+  background: #202a33;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.65);
+  padding: 18px;
+  width: 100%;
+}
+
+.deckyPreviewMenu h2 {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.3;
+  margin: 0 0 12px;
+}
+
+.deckyPreviewMenu > div {
+  display: grid;
+  gap: 4px;
+}
+
+.deckyPreviewMenu button {
+  background: #303b45;
+  border: 0;
+  border-radius: 2px;
+  color: #fff;
+  display: flex;
+  font: inherit;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.deckyPreviewMenu button.selected {
+  background: var(--decky-accent);
+  color: #08131d;
+}
+
+@media (max-width: 700px) {
+  .deckyPreviewBackdrop {
+    display: none;
+  }
+
+  .deckyPreviewQuickAccess {
+    height: 100vh;
+    max-height: none;
+    min-height: 0;
+    width: 100vw;
+  }
+}

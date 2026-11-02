@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  realtime:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install realtime toolchain and native dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y clang-21
+          libclang-rt-21-dev libpipewire-0.3-dev pkg-config
+
+      - name: Configure RealtimeSanitizer build
+        run: >-
+          cmake -S native -B native/build-current/rtsan
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++-21
+          -DEAR_TUNER_ENABLE_RTSAN=ON
+
+      - name: Build instrumented native targets
+        run: cmake --build native/build-current/rtsan -j2
+
+      - name: Test realtime safety and allocation detection
+        run: ctest --test-dir native/build-current/rtsan --output-on-failure
+
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9.15.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install native dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y libpipewire-0.3-dev
+          pkg-config
+
+      - name: Install project dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install -r requirements-dev.txt
+
+      - name: Check formatting and static analysis
+        run: pnpm run format:check
+
+      - name: Run Python tests
+        run: python -m unittest discover -s src/tests -t src -v
+
+      - name: Run frontend tests
+        run: pnpm test
+
+      - name: Type-check frontend
+        run: pnpm run typecheck
+
+      - name: Build, test, and inspect release archive
+        run: pnpm run package:decky

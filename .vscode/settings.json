@@ -1,0 +1,12 @@
+{
+  "C_Cpp.default.compilerPath": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++",
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/src",
+    "${workspaceFolder}/src/native",
+    "${workspaceFolder}/src/native/core",
+    "/usr/include/pipewire-0.3",
+    "/usr/include/spa-0.2"
+  ],
+  "cmake.sourceDirectory": "${workspaceFolder}/native",
+  "cmake.buildDirectory": "${workspaceFolder}/native/build-current"
+}

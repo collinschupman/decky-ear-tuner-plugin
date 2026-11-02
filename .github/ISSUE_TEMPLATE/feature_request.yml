@@ -1,0 +1,31 @@
+name: Feature idea
+description: Suggest an improvement to Ear Tuner
+title: '[Idea]: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. Describe the listening situation or problem it would help with. Do not include recordings or personal information.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to improve?
+      description: What is difficult or missing in the current experience?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Ear Tuner to do?
+      description:
+        Describe the change you have in mind. It's okay if you're not sure about
+        the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description:
+        Optional context that helps explain the idea. Don't include personal or
+        medical details.

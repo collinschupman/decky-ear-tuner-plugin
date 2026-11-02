@@ -1,0 +1,56 @@
+name: Bug report
+description: Report an Ear Tuner problem
+title: '[Bug]: '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include recordings or personal information.
+        For security vulnerabilities, use private reporting instead of a public issue: https://github.com/collinschupman/decky-ear-tuner-plugin/security/advisories/new
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Enable Ear Tuner
+        2. Select a focus mode
+        3. Start a game or sample
+  - type: input
+    id: output-device
+    attributes:
+      label: Audio output device
+      description:
+        For example, built-in speakers, wired headphones, Bluetooth headset, or
+        USB DAC.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Versions and settings
+      description:
+        Include your SteamOS version and update channel, Decky Loader version,
+        Ear Tuner version (shown at the bottom of Ear Tuner Guide), focus mode,
+        strength, and whether Adjust Ears Separately is enabled.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (optional)
+      description:
+        Remove private paths, account names, and unrelated system details before
+        sharing.
+      render: text
