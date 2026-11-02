@@ -1,0 +1,21 @@
+node_modules/
+package-lock.json
+dist/
+dist-web/
+release/
+.vscode/*
+!.vscode/settings.json
+*.log
+
+# C++ build artifacts
+native/build/*
+!native/build/decky_ear_tuner_backend
+native/build-current/
+backend/build/
+
+# Python cache
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+tmp/

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(git rev-parse --show-toplevel)"
+cd "${root_dir}"
+
+echo "Running formatting checks before push..."
+if ! bash scripts/check_style.sh; then
+    echo "Push blocked. Run 'pnpm run format', then retry the push." >&2
+    exit 1
+fi

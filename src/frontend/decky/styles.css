@@ -1,0 +1,497 @@
+.earTunerPlugin.container {
+  --accent: #60a5fa;
+  --line: rgba(230, 238, 248, 0.18);
+  --muted: rgba(230, 238, 248, 0.72);
+  --surface: #0f1720;
+  --surface-raised: #182431;
+  --text: #e6eef8;
+  color: var(--text);
+  font-family: 'Trebuchet MS', system-ui, sans-serif;
+}
+.earTunerPlugin.deckyPanel {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.earTunerDeckyFocusBoundary,
+.earTunerInfoPageBoundary {
+  align-self: stretch;
+  box-sizing: border-box;
+  width: 100%;
+}
+.earTunerInfoRoute {
+  align-self: stretch;
+  box-sizing: border-box;
+  display: flex;
+  height: calc(
+    100vh - var(--basicui-header-height, 0px) -
+      var(--gamepadui-current-footer-height, 0px)
+  );
+  margin: var(--basicui-header-height) 0 var(--gamepadui-current-footer-height);
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+}
+.earTunerInfoPageBoundary {
+  min-height: 100%;
+}
+.earTunerModeSelector {
+  --decky-control-gap: 8px;
+  align-items: stretch;
+  display: grid;
+  grid-template-areas:
+    'label'
+    'value'
+    'action';
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--decky-control-gap);
+  padding-bottom: 12px;
+  width: 100%;
+}
+.earTunerSelectedMode {
+  display: contents;
+}
+.earTunerSelectedMode span {
+  color: var(--muted);
+  font-size: 11px;
+  grid-area: label;
+}
+.earTunerSelectedMode strong {
+  font-size: 18px;
+  font-weight: 650;
+  grid-area: value;
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.earTunerPlugin .earTunerChangeModeButton {
+  grid-area: action;
+  min-height: 36px;
+  min-width: 0;
+  padding: 6px 12px;
+  width: 100%;
+}
+.earTunerSamplePreview {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+.earTunerSampleControl {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+.earTunerUsageInstructions {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px 16px 4px;
+}
+.earTunerUsageInstructions p {
+  margin: 0;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+.earTunerUsageInstructions p + p {
+  margin-top: 8px;
+}
+.earTunerPlugin .earTunerSampleButton {
+  justify-self: stretch;
+  min-height: 36px;
+  min-width: 96px;
+  padding: 6px 12px;
+  width: 100%;
+}
+
+.earTunerPlugin .deckyGitHubLink {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 30px minmax(0, 220px);
+  margin-bottom: 10px;
+  width: fit-content;
+}
+.earTunerPlugin .deckyGitHubIcon {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+}
+.earTunerPlugin .deckyGitHubIcon svg {
+  height: 27px;
+  width: 27px;
+}
+.earTunerPlugin.container .deckyGitHubButton {
+  background: rgba(230, 238, 248, 0.13);
+  border: 0;
+  color: var(--text);
+  height: 46px;
+  min-height: 46px;
+}
+.earTunerPlugin.container .deckyGitHubButton {
+  min-width: 0;
+  width: 100%;
+}
+.earTunerPlugin .deckyGitHubButtonContent {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.earTunerPlugin .deckyGitHubButtonContent svg {
+  flex: 0 0 auto;
+  height: 24px;
+  width: 24px;
+}
+.earTunerPlugin.deckyInfoPage {
+  box-sizing: border-box;
+  color: var(--text);
+  min-height: 100%;
+  padding: 8px 16px 18px;
+}
+.earTunerPlugin.deckyInfoPage h2 {
+  border-bottom: 1px solid var(--line);
+  font-size: 18px;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+}
+.earTunerPlugin.deckyInfoPage h3 {
+  font-size: 14px;
+  margin: 18px 0 6px;
+}
+.earTunerPlugin.deckyInfoPage p,
+.earTunerPlugin.deckyInfoPage li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.earTunerPlugin.deckyInfoPage p {
+  margin: 0;
+}
+.earTunerPlugin.deckyInfoPage ul,
+.earTunerPlugin.deckyInfoPage ol {
+  margin: 0;
+  padding-left: 20px;
+}
+.earTunerPlugin.deckyInfoPage li + li {
+  margin-top: 5px;
+}
+.earTunerPlugin.deckyInfoPage strong {
+  color: var(--text);
+  font-weight: 650;
+}
+.earTunerPlugin.deckyInfoPage .deckyNavigationDescription {
+  margin: 0 0 8px;
+}
+body.earTunerStandalone {
+  background: #0f1720;
+  margin: 0;
+  padding: 32px 20px;
+}
+.earTunerPlugin.container {
+  box-sizing: border-box;
+  max-width: 760px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+  border: 1px solid rgba(230, 238, 248, 0.12);
+  border-radius: 4px;
+  padding: 28px;
+}
+.earTunerPlugin h1 {
+  font-size: 25px;
+  font-weight: 650;
+  line-height: 1.2;
+  margin: 0 0 6px;
+}
+.earTunerPlugin .titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 20px;
+}
+.earTunerPlugin .titleRow p {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+.earTunerPlugin .headphoneNotice {
+  background: #3b2412;
+  border-left: 3px solid #f59e0b;
+  color: #fff3d6;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 14px 0;
+  padding: 10px 12px;
+}
+.earTunerPlugin.deckyPanel .headphoneNotice {
+  background: rgba(245, 158, 11, 0.08);
+  border-left-color: rgba(245, 158, 11, 0.65);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  margin: 0;
+  padding: 8px;
+}
+.earTunerPlugin.deckyPanel .earTunerIntroduction {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+}
+.earTunerPlugin .toggleControl {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.earTunerPlugin .toggleControl:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.earTunerPlugin .toggleControl input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.earTunerPlugin .toggleControl span {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background: #45515d;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+.earTunerPlugin .toggleControl span::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #f7f8f5;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+}
+.earTunerPlugin .toggleControl input:checked + span {
+  background: var(--accent);
+}
+.earTunerPlugin .toggleControl input:checked + span::after {
+  transform: translateX(18px);
+}
+.earTunerPlugin .toggleControl input:focus-visible + span {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.earTunerPlugin .separateControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin-top: 20px;
+}
+.earTunerPlugin .separateControl input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.earTunerPlugin .separateControl:has(input:disabled) {
+  opacity: 0.45;
+}
+.earTunerPlugin .channelGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  margin-top: 24px;
+}
+.earTunerPlugin .channelGrid.shared {
+  grid-template-columns: minmax(0, 1fr);
+}
+.earTunerPlugin .channelControls {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.earTunerPlugin .channelControls.disabled {
+  opacity: 0.45;
+}
+.earTunerPlugin .channelControls h2 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0 0 16px;
+}
+.earTunerPlugin .focusControls {
+  display: grid;
+  gap: 9px;
+}
+.earTunerPlugin .fieldLabel,
+.earTunerPlugin fieldset legend {
+  color: var(--muted);
+  font-size: 12px;
+}
+.earTunerPlugin select {
+  appearance: none;
+  background: var(--surface-raised);
+  border: 1px solid rgba(230, 238, 248, 0.3);
+  border-radius: 3px;
+  color: var(--text);
+  font: inherit;
+  padding: 9px 34px 9px 10px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--accent) 50%),
+    linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+.earTunerPlugin fieldset {
+  border: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  min-width: 0;
+}
+.earTunerPlugin fieldset:disabled {
+  opacity: 0.4;
+}
+.earTunerPlugin fieldset legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.earTunerPlugin .strengthControl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid rgba(230, 238, 248, 0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.earTunerPlugin .strengthControl label {
+  cursor: pointer;
+  font-size: 13px;
+  padding: 8px 4px;
+  text-align: center;
+}
+.earTunerPlugin .strengthControl label + label {
+  border-left: 1px solid rgba(230, 238, 248, 0.3);
+}
+.earTunerPlugin .strengthControl label.selected {
+  background: var(--accent);
+  color: #06263b;
+}
+.earTunerPlugin .strengthControl input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.earTunerPlugin .samplePlayer {
+  border-top: 1px solid var(--line);
+  margin-top: 28px;
+  padding-top: 20px;
+}
+
+.earTunerPlugin .samplePlayerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.earTunerPlugin .samplePlayer h2 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0 0 5px;
+}
+.earTunerPlugin .samplePlayer p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.earTunerPlugin .samplePlayerHeader button {
+  flex: 0 0 92px;
+}
+.earTunerPlugin .sampleError {
+  color: #fca5a5;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.earTunerPlugin .helpActionDescription {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.earTunerPlugin .earTunerVisuallyHidden {
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+.earTunerPlugin .buttons {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 20px;
+}
+.earTunerPlugin.container button {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: #06263b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 34px;
+  padding: 7px 13px;
+}
+.earTunerPlugin.container button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.earTunerPlugin.container button.secondary {
+  background: transparent;
+  border: 1px solid rgba(230, 238, 248, 0.35);
+  color: var(--text);
+}
+.earTunerPlugin button.testButton.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #241500;
+}
+.earTunerPlugin .versionLabel {
+  font-size: 11px;
+  opacity: 0.6;
+  padding: 14px 0 2px;
+  text-align: center;
+}
+@media (max-width: 680px) {
+  .earTunerPlugin .titleRow {
+    align-items: center;
+  }
+  .earTunerPlugin .channelGrid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .earTunerPlugin.container {
+    padding: 20px 16px;
+  }
+  .earTunerPlugin .buttons {
+    flex-direction: column;
+  }
+  .earTunerPlugin .samplePlayerHeader {
+    align-items: flex-start;
+  }
+}

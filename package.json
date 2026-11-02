@@ -1,0 +1,68 @@
+{
+  "name": "decky-ear-tuner-plugin",
+  "version": "0.1.0-beta.1",
+  "description": "Independent left and right audio processing profiles for Steam Deck headphones.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.20.2 <21 || >=22.13.0 <23 || >=24.0.0 <25"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/collinschupman/decky-ear-tuner-plugin.git"
+  },
+  "keywords": [
+    "decky",
+    "steam-deck",
+    "audio",
+    "accessibility",
+    "pipewire"
+  ],
+  "author": "Collin Schupman <collinschupman@gmail.com>",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/collinschupman/decky-ear-tuner-plugin/issues"
+  },
+  "homepage": "https://github.com/collinschupman/decky-ear-tuner-plugin#readme",
+  "scripts": {
+    "dev": "concurrently --kill-others --names api,ui \"pnpm dev:api\" \"pnpm dev:ui\"",
+    "dev:api": "python -c \"import main; main.run_desktop_server(port=8000)\"",
+    "dev:ui": "node scripts/dev_ui.mjs",
+    "build": "pnpm run typecheck && pnpm run build:decky",
+    "build:web": "vite build",
+    "build:decky": "rollup -c",
+    "package:decky": "bash scripts/package_decky.sh",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "postinstall": "git config core.hooksPath .githooks",
+    "format": "bash scripts/format.sh",
+    "format:check": "bash scripts/check_style.sh",
+    "preview": "vite preview",
+    "test": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --coverage --config vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@decky/api": "^1.1.3",
+    "@decky/ui": "^4.12.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@decky/rollup": "^1.0.2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^4.1.12",
+    "concurrently": "^10.0.6",
+    "jsdom": "^29.1.1",
+    "prettier": "3.9.9",
+    "rollup": "4.63.6",
+    "rollup-plugin-import-assets": "1.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5",
+    "vitest": "^4.1.12"
+  }
+}
