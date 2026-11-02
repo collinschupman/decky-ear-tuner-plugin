@@ -10,8 +10,8 @@ candidate.
 
 - [x] Replace `assets/preview.png` with a current Game Mode screenshot of Ear
       Tuner.
-- [ ] Confirm the preview URL in `plugin.json` works without authentication. It
-      returned 404 on 2026-11-01 while the repository was private.
+- [x] Confirm the preview URL in `plugin.json` works without authentication
+      (verified 2026-11-01 after publication).
 - [x] Document the origin and redistribution rights for the bundled listening
       sample.
 - [x] Accept and document that `ear-tuner` appears in the audio output selector
@@ -20,8 +20,8 @@ candidate.
       silence audio.
 - [x] Review the version, author, description, tags, repository URLs, and all
       user-facing text.
-- [ ] Confirm intended repository visibility with the maintainer before
-      submission; public visibility alone is not release approval.
+- [x] Confirm intended repository visibility with the maintainer before
+      submission; publication was approved on 2026-11-01.
 - [x] Verify Ear Tuner is unique or document how it differs from existing store
       plugins.
 
@@ -48,8 +48,8 @@ pnpm run package:decky
 - [x] Every command passes at the candidate commit.
 - [x] Review every `pnpm audit` finding and record whether it affects shipped or
       build-only code.
-- [ ] CI passes for the same commit.
-- [ ] `git status` is clean after the build.
+- [x] CI and CodeQL pass for the published release tree.
+- [x] `git status` is clean after the build and candidate status commit.
 
 Audit review on 2026-10-25:
 
@@ -87,9 +87,9 @@ Audit review on 2026-10-25:
 - `pnpm audit --prod` reports no known vulnerabilities. The full audit reports
   the same four build-only findings through `@decky/rollup` documented above.
 - Archive: `release/ear-tuner-0.1.0-beta.1.tar.gz`
-- SHA-256: `80a102cf2013dd1f57db6e13638c46d561c689264ab9db94538ec1e702e12d34`
-- Anonymous access to the repository and preview image returned 404. Make the
-  repository public and confirm CI after committing these fixes.
+- SHA-256: `205b5533296bbc5c623f0a583bb388c52b5dbf8a401b37d1d22ddb0e9fc2ed1d`
+- Anonymous access to the repository and preview image returns HTTP 200. GitHub
+  CI and CodeQL pass for the published release tree.
 
 ## 3. Release archive inspection
 
@@ -238,7 +238,7 @@ independent testing on the SteamOS Preview channel.
       attached.
 - [ ] Optionally test two other ready Plugin Database pull requests and retain
       links to the feedback comments.
-- [ ] Make the source repository and preview image publicly accessible.
+- [x] Make the source repository and preview image publicly accessible.
 - [ ] Add the repository as the required Plugin Database submodule.
 - [ ] Open the plugin-addition pull request at the independently tested commit.
 - [ ] Include the Preview test report, preview image, license, concise plugin
