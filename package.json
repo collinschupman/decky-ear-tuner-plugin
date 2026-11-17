@@ -31,7 +31,7 @@
     "dev:ui": "node scripts/dev_ui.mjs",
     "build": "pnpm run typecheck && pnpm run build:decky",
     "build:web": "vite build",
-    "build:decky": "rollup -c",
+    "build:decky": "rollup -c && node scripts/stage_runtime.mjs",
     "package:decky": "bash scripts/package_decky.sh",
     "hooks:install": "git config core.hooksPath .githooks",
     "postinstall": "git config core.hooksPath .githooks",

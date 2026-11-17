@@ -11,7 +11,6 @@ import type {
 import { auditionSampleUrl } from './audition_sample'
 import './styles.css'
 
-const NATIVE_CONTROL_API_URL = 'http://127.0.0.1:19285/api/v1/control'
 const AUDITION_SAMPLE_VOLUME = 1
 const GITHUB_REPOSITORY_URL =
   'https://github.com/collinschupman/decky-ear-tuner-plugin'
@@ -25,6 +24,12 @@ const SEPARATE_EARS_LABEL = 'Adjust Ears Separately'
 const PLAY_SAMPLE_LABEL = 'Play'
 const STOP_SAMPLE_LABEL = 'Stop'
 const STANDALONE_SETTINGS_API_URL = '/api/ear-tuner'
+const STORAGE_KEYS = {
+  enabled: 'focus-enabled',
+  separateChannels: 'focus-separate-channels',
+  mode: { left: 'focus-mode-left', right: 'focus-mode-right' },
+  level: { left: 'focus-level-left', right: 'focus-level-right' },
+} as const
 
 const FOCUS_MODE_MENU_OPTIONS = [
   { value: 1, label: 'Low Frequencies' },
@@ -56,6 +61,7 @@ type DeckyContextMenu = {
 }
 
 type DeckyUiComponents = {
+  Navigation: { NavigateToExternalWeb: (url: string) => void }
   GamepadButton: {
     BUMPER_LEFT: number
     BUMPER_RIGHT: number
@@ -86,7 +92,7 @@ type DeckyUiComponents = {
   ) => DeckyContextMenu
 }
 
-let deckyPersistencePromise: Promise<DeckyPersistence | null> | undefined
+let deckyPersistence: DeckyPersistence | undefined
 let latestEarTunerSettings: EarTunerSettings | null = null
 let confirmedEarTunerSettings: EarTunerSettings | null = null
 let settingsWriteQueue = Promise.resolve()
@@ -129,44 +135,18 @@ function getStandalonePersistence(): DeckyPersistence {
   }
 }
 
-function getDeckyPersistence(): Promise<DeckyPersistence | null> {
-  if (!deckyPersistencePromise) {
-    deckyPersistencePromise =
-      window.__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit
-        ? import('@decky/api')
-            .then(({ callable }) => ({
-              get: callable<[], EarTunerSettings>('get_ear_tuner'),
-              set: callable<[EarTunerSettings], boolean>('set_ear_tuner'),
-            }))
-            .catch((error) => {
-              console.error('Could not connect to Decky settings:', error)
-              return null
-            })
-        : Promise.resolve(getStandalonePersistence())
-  }
-  return deckyPersistencePromise
+export function configureDeckyPersistence(persistence: DeckyPersistence): void {
+  deckyPersistence = persistence
+}
+
+function getDeckyPersistence(): Promise<DeckyPersistence> {
+  return Promise.resolve(deckyPersistence ?? getStandalonePersistence())
 }
 
 function saveEarTunerSettings(value: EarTunerSettings): Promise<void> {
   const result = settingsWriteQueue.then(async () => {
     const persistence = await getDeckyPersistence()
-    let applied: boolean
-    if (persistence) {
-      applied = await persistence.set(value)
-    } else {
-      const params = new URLSearchParams({
-        focus_enabled: value.enabled ? '1' : '0',
-        left_mode: String(value.left_mode),
-        left_level: String(value.left_level),
-        right_mode: String(
-          value.separate_channels ? value.right_mode : value.left_mode,
-        ),
-        right_level: String(
-          value.separate_channels ? value.right_level : value.left_level,
-        ),
-      })
-      applied = (await fetch(`${NATIVE_CONTROL_API_URL}?${params}`)).ok
-    }
+    const applied = await persistence.set(value)
     if (!applied)
       throw new Error('The backend did not confirm the settings update')
     confirmedEarTunerSettings = value
@@ -193,19 +173,15 @@ function sameSettings(
 }
 
 function cacheSettings(value: EarTunerSettings): void {
-  localStorage.setItem('focus-enabled', String(value.enabled))
+  localStorage.setItem(STORAGE_KEYS.enabled, String(value.enabled))
   localStorage.setItem(
-    'focus-separate-channels',
+    STORAGE_KEYS.separateChannels,
     String(value.separate_channels),
   )
-  localStorage.setItem('focus-mode-left', String(value.left_mode))
-  localStorage.setItem('focus-mode-right', String(value.right_mode))
-  localStorage.setItem('focus-level-left', String(value.left_level))
-  localStorage.setItem('focus-level-right', String(value.right_level))
-}
-
-function openFeedbackUrl(url: string): void {
-  window.open(url, '_blank', 'noopener,noreferrer')
+  localStorage.setItem(STORAGE_KEYS.mode.left, String(value.left_mode))
+  localStorage.setItem(STORAGE_KEYS.mode.right, String(value.right_mode))
+  localStorage.setItem(STORAGE_KEYS.level.left, String(value.left_level))
+  localStorage.setItem(STORAGE_KEYS.level.right, String(value.right_level))
 }
 
 function findScrollableAncestor(element: HTMLElement): HTMLElement | null {
@@ -275,7 +251,7 @@ function DeckyGitHubLink({
   url: string
 }) {
   const { DialogButton } = deckyUi
-  const openUrl = () => openFeedbackUrl(url)
+  const openUrl = () => deckyUi.Navigation.NavigateToExternalWeb(url)
 
   return (
     <div className="deckyGitHubLink">
@@ -697,32 +673,32 @@ export function App({
   const [enabled, setEnabled] = React.useState(
     () =>
       initialSettings?.enabled ??
-      localStorage.getItem('focus-enabled') === 'true',
+      localStorage.getItem(STORAGE_KEYS.enabled) === 'true',
   )
   const [separateChannels, setSeparateChannels] = React.useState(
     () =>
       initialSettings?.separate_channels ??
-      localStorage.getItem('focus-separate-channels') === 'true',
+      localStorage.getItem(STORAGE_KEYS.separateChannels) === 'true',
   )
   const [leftMode, setLeftMode] = React.useState<FocusMode>(
     () =>
       initialSettings?.left_mode ??
-      readStoredNumber('focus-mode-left', 2, 0, 4),
+      readStoredNumber(STORAGE_KEYS.mode.left, 2, 0, 4),
   )
   const [rightMode, setRightMode] = React.useState<FocusMode>(
     () =>
       initialSettings?.right_mode ??
-      readStoredNumber('focus-mode-right', 2, 0, 4),
+      readStoredNumber(STORAGE_KEYS.mode.right, 2, 0, 4),
   )
   const [leftLevel, setLeftLevel] = React.useState<FocusLevel>(
     () =>
       initialSettings?.left_level ??
-      readStoredNumber('focus-level-left', 2, 1, 3),
+      readStoredNumber(STORAGE_KEYS.level.left, 2, 1, 3),
   )
   const [rightLevel, setRightLevel] = React.useState<FocusLevel>(
     () =>
       initialSettings?.right_level ??
-      readStoredNumber('focus-level-right', 2, 1, 3),
+      readStoredNumber(STORAGE_KEYS.level.right, 2, 1, 3),
   )
   const [hydrated, setHydrated] = React.useState(false)
   const [settingsLoadFailed, setSettingsLoadFailed] = React.useState(false)
@@ -761,7 +737,7 @@ export function App({
   React.useEffect(() => {
     let active = true
     getDeckyPersistence()
-      .then((persistence) => persistence?.get())
+      .then((persistence) => persistence.get())
       .then((saved) => {
         if (!active || !saved) return
         const current = latestEarTunerSettings ?? saved
@@ -846,14 +822,6 @@ export function App({
   ])
 
   React.useEffect(() => {
-    if (!hydrated) return
-    const params = new URLSearchParams({ focus_bypass: '0' })
-    fetch(`${NATIVE_CONTROL_API_URL}?${params}`).catch((error) =>
-      console.error('Could not restore audio processing:', error),
-    )
-  }, [hydrated])
-
-  React.useEffect(() => {
     if (!quickAccessVisible && !modeMenuOpen) stopAuditionSample()
   }, [quickAccessVisible])
 
@@ -882,7 +850,7 @@ export function App({
       right_level: rightLevel,
     }
     latestEarTunerSettings = value
-    localStorage.setItem(`focus-mode-${channel}`, String(mode))
+    localStorage.setItem(STORAGE_KEYS.mode[channel], String(mode))
     saveSettings(value)
   }
 

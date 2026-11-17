@@ -1,6 +1,7 @@
 import asyncio
-import urllib.request
+import http.client
 
+from ear_tuner.control_credentials import control_request
 from ear_tuner.settings import EarTunerSettings
 
 
@@ -22,11 +23,12 @@ class BackendClient:
             f"{self._control_api_url}?focus_enabled={int(value['enabled'])}"
             f"&left_mode={value['left_mode']}&left_level={value['left_level']}"
             f"&right_mode={right_mode}&right_level={right_level}"
+            "&focus_bypass=0"
         )
         try:
             await self._request(url, timeout=2)
             return True
-        except OSError as exc:
+        except (OSError, ValueError, http.client.HTTPException) as exc:
             self._logger.warning("Could not push Ear Tuner settings: %s", exc)
             return False
 
@@ -34,13 +36,10 @@ class BackendClient:
         try:
             await self._request(f"{self._control_api_url}?left=0&right=0", timeout=1)
             return True
-        except OSError:
+        except (OSError, ValueError, http.client.HTTPException) as exc:
+            self._logger.warning("Native backend health check failed: %s", exc)
             return False
 
     @staticmethod
     async def _request(url: str, timeout: int) -> None:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: urllib.request.urlopen(url, timeout=timeout),  # noqa: S310
-        )
+        await asyncio.to_thread(control_request, url, timeout)

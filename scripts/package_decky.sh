@@ -64,7 +64,7 @@ mkdir -p "${STAGE_DIR}/dist/assets" "${STAGE_DIR}/licenses" "${STAGE_DIR}/native
 cp LICENSE package.json plugin.json main.py service.sh "${STAGE_DIR}/"
 cp docs/THIRD_PARTY_NOTICES.md "${STAGE_DIR}/"
 cp "${DECKY_API_DIR}/LICENSE" "${STAGE_DIR}/licenses/LGPL-2.1.txt"
-cp -R src/ear_tuner "${STAGE_DIR}/"
+cp -R ear_tuner "${STAGE_DIR}/"
 find "${STAGE_DIR}/ear_tuner" -type d -name "__pycache__" -prune -exec rm -rf {} +
 cp dist/index.js "${STAGE_DIR}/dist/"
 cp -R dist/assets/. "${STAGE_DIR}/dist/assets/"

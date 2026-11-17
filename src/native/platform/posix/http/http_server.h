@@ -11,6 +11,7 @@ struct PosixHttpServerState {
     std::atomic<int> mServerFd{-1};
     std::atomic<bool> mStopRequested{false};
     uint16_t mPort = 19285;
+    std::string mToken;
     std::function<std::string()> mDiagnostics;
 };
 

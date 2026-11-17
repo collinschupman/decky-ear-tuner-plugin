@@ -32,7 +32,10 @@ processes with Ctrl+C.
 **The preview uses the real backend, not a mock.** On Linux, it restores saved
 settings and may start or restart the audio service. Don't run it alongside the
 installed plugin or another Ear Tuner instance. On macOS, you can inspect the
-UI, but audio processing isn't available and settings changes may fail.
+UI, but audio processing isn't available and settings changes may fail. The
+optional preview API is a development interface, not an authenticated user
+service. Run it only on a trusted local machine; do not expose it to a network.
+The installed Decky plugin uses Decky's RPC instead.
 
 ## Project map
 
@@ -65,10 +68,13 @@ From the checkout in Desktop Mode, open native Konsole and run:
 ```
 
 The installer builds the frontend and native backend, runs native tests, and
-links the checkout into Decky. It may install missing dependencies or Decky
-Loader, ask for administrator access, and temporarily disable the SteamOS
-read-only filesystem while installing packages. Return to Game Mode and reload
-Ear Tuner through Decky Settings.
+links the checkout into Decky. It never disables SteamOS read-only protection or
+changes SteamOS/Arch system packages. If build dependencies are missing, use a
+prepared development SDK/build host or the
+[prebuilt release installer](../README.md) instead. On other supported Linux
+distributions it can install dependencies with administrator permission. It can
+also install missing Decky Loader through the official installer. Return to Game
+Mode and reload Ear Tuner through Decky Settings.
 
 Use `./update-decky.sh` to update and rebuild a clean checkout, or
 `./uninstall-decky.sh` to stop processing and remove the development link.

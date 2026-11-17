@@ -20,20 +20,6 @@ BACKEND_BIN="${BUILD_DIR}/decky_ear_tuner_backend"
 LINK_ONLY=false
 SKIP_SYSTEM_DEPS=false
 SKIP_DECKY=false
-RESTORE_STEAMOS_READONLY=false
-
-restore_steamos_readonly() {
-    if [[ "${RESTORE_STEAMOS_READONLY}" == true ]]; then
-        if [[ "$(id -u)" -eq 0 ]]; then
-            steamos-readonly enable || true
-        else
-            sudo steamos-readonly enable || true
-        fi
-        RESTORE_STEAMOS_READONLY=false
-    fi
-}
-
-trap restore_steamos_readonly EXIT
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -76,7 +62,7 @@ ensure_admin_access() {
 
 missing_system_dependencies() {
     local command_name
-    for command_name in cmake c++ pkg-config git curl tar pactl pw-link; do
+    for command_name in cmake c++ pkg-config git curl tar pactl pw-link python3; do
         command -v "${command_name}" > /dev/null 2>&1 || return 0
     done
     if [[ "${SKIP_DECKY}" == false ]] && ! decky_is_installed; then
@@ -93,46 +79,41 @@ install_system_dependencies() {
         return 1
     fi
 
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    case "${ID:-} ${ID_LIKE:-}" in
+        *steamos* | *arch*)
+            echo "ERROR: This installer does not change SteamOS/Arch system packages." >&2
+            echo "Use a prepared development SDK/build host, or install a prebuilt release." >&2
+            echo "SteamOS read-only protection is never disabled by this installer." >&2
+            return 1
+            ;;
+    esac
+
     local -a elevate=()
     if [[ "$(id -u)" -ne 0 ]]; then
         ensure_admin_access
         elevate=(sudo)
     fi
 
-    # shellcheck disable=SC1091
-    . /etc/os-release
     case "${ID:-} ${ID_LIKE:-}" in
-        *steamos* | *arch*)
-            if command -v steamos-readonly > /dev/null 2>&1 &&
-                steamos-readonly status 2> /dev/null | grep -qi enabled; then
-                echo "==> Temporarily disabling the SteamOS read-only filesystem"
-                "${elevate[@]}" steamos-readonly disable
-                RESTORE_STEAMOS_READONLY=true
-            fi
-            echo "==> Installing native build and PipeWire dependencies"
-            if ! "${elevate[@]}" pacman -Sy --needed --noconfirm \
-                base-devel cmake pkgconf pipewire libpulse git curl jq xz; then
-                return 1
-            fi
-            restore_steamos_readonly
-            ;;
         *debian* | *ubuntu*)
             "${elevate[@]}" apt-get update
             "${elevate[@]}" apt-get install -y build-essential cmake pkg-config \
-                libpipewire-0.3-dev pipewire-bin pulseaudio-utils git curl jq xz-utils
+                libpipewire-0.3-dev pipewire-bin pulseaudio-utils git curl jq xz-utils python3
             ;;
         *fedora* | *rhel*)
             "${elevate[@]}" dnf install -y gcc-c++ make cmake pkgconf-pkg-config \
-                pipewire-devel pipewire-utils pulseaudio-utils git curl jq xz
+                pipewire-devel pipewire-utils pulseaudio-utils git curl jq xz python3
             ;;
         *opensuse* | *suse*)
             "${elevate[@]}" zypper --non-interactive install -y gcc-c++ make cmake \
-                pkg-config pipewire-devel pipewire-tools pulseaudio-utils git curl jq xz
+                pkg-config pipewire-devel pipewire-tools pulseaudio-utils git curl jq xz python3
             ;;
         *)
             echo "ERROR: Unsupported distribution '${ID:-unknown}'." >&2
             echo "Install a C++ toolchain, CMake, pkg-config, PipeWire " \
-                "headers/tools, PulseAudio tools, Git, curl, tar, and xz; " \
+                "headers/tools, PulseAudio tools, Git, curl, tar, xz, and Python 3; " \
                 "then rerun with --skip-system-deps." >&2
             return 1
             ;;

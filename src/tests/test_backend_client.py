@@ -1,4 +1,3 @@
-import asyncio
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -27,7 +26,7 @@ class BackendClientTests(unittest.IsolatedAsyncioTestCase):
 
         request.assert_awaited_once_with(
             "http://127.0.0.1:19285/api/v1/control?focus_enabled=1"
-            "&left_mode=4&left_level=3&right_mode=4&right_level=3",
+            "&left_mode=4&left_level=3&right_mode=4&right_level=3&focus_bypass=0",
             timeout=2,
         )
         self.logger.warning.assert_not_called()
@@ -47,7 +46,7 @@ class BackendClientTests(unittest.IsolatedAsyncioTestCase):
 
         request.assert_awaited_once_with(
             "http://127.0.0.1:19285/api/v1/control?focus_enabled=1"
-            "&left_mode=4&left_level=3&right_mode=1&right_level=2",
+            "&left_mode=4&left_level=3&right_mode=1&right_level=2&focus_bypass=0",
             timeout=2,
         )
 
@@ -82,26 +81,14 @@ class BackendClientTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertFalse(await self.client.is_healthy())
 
-        self.logger.warning.assert_not_called()
+        self.logger.warning.assert_called_once()
 
-    async def test_request_runs_urlopen_in_executor(self):
-        response = object()
-        future = asyncio.get_running_loop().create_future()
-        future.set_result(None)
-        with patch("ear_tuner.backend_client.asyncio.get_running_loop") as get_loop:
-            executor = get_loop.return_value.run_in_executor
-            executor.return_value = future
-
-            await BackendClient._request("http://localhost/control", timeout=7)
-            callback = executor.call_args.args[1]
-            with patch(
-                "ear_tuner.backend_client.urllib.request.urlopen",
-                return_value=response,
-            ) as urlopen:
-                callback()
-
-        executor.assert_called_once()
-        urlopen.assert_called_once_with("http://localhost/control", timeout=7)
+    async def test_request_runs_authenticated_client_off_event_loop(self):
+        with patch("ear_tuner.backend_client.control_request") as request:
+            await BackendClient._request(
+                "http://127.0.0.1:19285/api/v1/control", timeout=7
+            )
+        request.assert_called_once_with("http://127.0.0.1:19285/api/v1/control", 7)
 
 
 if __name__ == "__main__":

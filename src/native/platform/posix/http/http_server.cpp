@@ -2,6 +2,7 @@
 
 #include "ear_tuner/focus_types.h"
 #include "http/http_parse.h"
+#include "platform/posix/http/control_token.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -14,6 +15,7 @@
 #include <iostream>
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <string>
 
@@ -23,6 +25,64 @@ using Clock = std::chrono::steady_clock;
 constexpr auto kClientTimeout = std::chrono::milliseconds(500);
 constexpr int kStopPollMilliseconds = 50;
 constexpr size_t kMaximumRequestBytes = 4096;
+
+bool Authenticated(const std::string &request, const std::string &token)
+{
+    size_t position = request.find("\r\n");
+    bool authorized = false;
+    while (position != std::string::npos) {
+        position += 2;
+        const auto end = request.find("\r\n", position);
+        if (end == position) {
+            return authorized;
+        }
+        const auto separator = request.find(':', position);
+        if (end == std::string::npos || separator == std::string::npos || separator >= end) {
+            return false;
+        }
+        std::string name = request.substr(position, separator - position);
+        if (name.empty() ||
+            name.find_first_not_of(
+                "!#$%&'*+-.^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz") !=
+                std::string::npos) {
+            return false;
+        }
+        for (auto &ch : name) {
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        }
+        if (name == "origin") {
+            return false;
+        }
+        if (name == "authorization") {
+            if (authorized) {
+                return false;
+            }
+            const auto first = request.find_first_not_of(" \t", separator + 1);
+            const auto last = request.find_last_not_of(" \t", end - 1);
+            if (first == std::string::npos || last == std::string::npos || first > last ||
+                last - first + 1 != 7 + token.size()) {
+                return false;
+            }
+            std::string scheme = request.substr(first, 7);
+            for (auto &ch : scheme) {
+                ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            }
+            if (scheme != "bearer ") {
+                return false;
+            }
+            unsigned char difference = 0;
+            for (size_t i = 0; i < token.size(); ++i) {
+                difference |= static_cast<unsigned char>(request[first + 7 + i] ^ token[i]);
+            }
+            if (difference != 0) {
+                return false;
+            }
+            authorized = true;
+        }
+        position = end;
+    }
+    return false;
+}
 
 bool IsDiagnosticsRequest(const std::string &request)
 {
@@ -34,7 +94,7 @@ std::string DiagnosticsResponse(const std::string &body)
 {
     return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " +
            std::to_string(body.size()) +
-           "\r\nX-Ear-Tuner-API-Version: 1\r\nAccess-Control-Allow-Origin: *\r\n\r\n" + body;
+           "\r\nX-Ear-Tuner-API-Version: 1\r\nX-Ear-Tuner-Auth: bearer\r\n\r\n" + body;
 }
 
 bool MakeNonblocking(int fd)
@@ -135,6 +195,10 @@ void RunHttpServer(EarTunerControlState &controlState, PosixHttpServerState &ser
     if (serverState.mStopRequested.load(std::memory_order_relaxed)) {
         return;
     }
+    if (!ControlToken::Valid(serverState.mToken)) {
+        std::cerr << "native http requires valid control credentials\n";
+        return;
+    }
     const int serverFd = socket(AF_INET, SOCK_STREAM, 0);
     if (serverFd < 0) {
         std::cerr << "native http socket failed: " << std::strerror(errno) << "\n";
@@ -162,11 +226,14 @@ void RunHttpServer(EarTunerControlState &controlState, PosixHttpServerState &ser
     constexpr char kOkResponse[] =
         "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n"
         "X-Ear-Tuner-API-Version: 1\r\n"
-        "Access-Control-Allow-Origin: *\r\n\r\nOK";
+        "X-Ear-Tuner-Auth: bearer\r\n\r\nOK";
     constexpr char kBadResponse[] =
         "HTTP/1.1 400 Bad Request\r\nContent-Length: 11\r\n"
         "X-Ear-Tuner-API-Version: 1\r\n"
-        "Access-Control-Allow-Origin: *\r\n\r\nBad Request";
+        "\r\nBad Request";
+    constexpr char kUnauthorizedResponse[] =
+        "HTTP/1.1 401 Unauthorized\r\nContent-Length: 12\r\n"
+        "WWW-Authenticate: Bearer realm=\"ear-tuner\"\r\n\r\nUnauthorized";
 
     while (!serverState.mStopRequested.load(std::memory_order_relaxed)) {
         pollfd listener{serverFd, POLLIN, 0};
@@ -204,6 +271,12 @@ void RunHttpServer(EarTunerControlState &controlState, PosixHttpServerState &ser
         bool valid = false;
         std::string dynamicResponse;
         if (ReadRequest(clientFd, serverState, deadline, request)) {
+            if (!Authenticated(request, serverState.mToken)) {
+                SendResponse(clientFd, kUnauthorizedResponse, sizeof(kUnauthorizedResponse) - 1,
+                             serverState, deadline);
+                close(clientFd);
+                continue;
+            }
             std::string query;
             if (IsDiagnosticsRequest(request) && serverState.mDiagnostics) {
                 dynamicResponse = DiagnosticsResponse(serverState.mDiagnostics());

@@ -1,4 +1,5 @@
 #include "platform/linux/pipewire/pipewire_filter.h"
+#include "platform/posix/http/control_token.h"
 #include "platform/posix/http/http_server.h"
 
 #include <pipewire/pipewire.h>
@@ -38,6 +39,16 @@ void DestroyStreams(AudioState &state)
 
 int main(int argc, char *argv[])
 {
+    PosixHttpServerState httpState;
+    try {
+        if (argc != 3 || std::string(argv[1]) != "--control-token-file") {
+            throw std::runtime_error("Usage: decky_ear_tuner_backend --control-token-file PATH");
+        }
+        httpState.mToken = ControlToken::Read(argv[2]);
+    } catch (const std::exception &error) {
+        std::cerr << "Native control authentication: " << error.what() << "\n";
+        return 1;
+    }
     pw_init(&argc, &argv);
 
     AudioState state;
@@ -110,7 +121,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    PosixHttpServerState httpState;
     httpState.mDiagnostics = [&state] { return AudioDiagnosticsJson(state); };
     std::thread httpThread(RunHttpServer, std::ref(state.mControl), std::ref(httpState));
     pw_main_loop_run(state.mLoop);

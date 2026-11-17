@@ -4,6 +4,12 @@ Use this checklist for the commit submitted to the Decky Plugin Database. Decky
 testing occurs during pull request review; it is not a prerequisite for opening
 the pull request.
 
+The checked results and artifact checksum below describe the previously
+submitted `0.1.0-beta.1` release, not subsequent source changes. The submission
+feedback fixes require fresh Linux packaging, archive inspection, CI/CodeQL, and
+SteamOS Game Mode/audio validation before resubmission. Refresh the checksum and
+native dependency list from that newly built archive.
+
 ## Candidate validation
 
 - [x] Version, metadata, user-facing text, license, notices, and preview image

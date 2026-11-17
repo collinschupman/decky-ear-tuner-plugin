@@ -70,9 +70,11 @@ To check the actual callbacks, run the instrumented backend on a Linux host with
 a live PipeWire session:
 
 ```bash
-target_node="$(pactl get-default-sink)" &&
+token_file="$(python3 src/ear_tuner/control_credentials.py ensure)" &&
+  target_node="$(pactl get-default-sink)" &&
   EAR_TUNER_TARGET_NODE="$target_node" \
-    ./native/build-current/rtsan/decky_ear_tuner_backend
+    ./native/build-current/rtsan/decky_ear_tuner_backend \
+      --control-token-file "$token_file"
 ```
 
 Don't run it alongside the installed plugin or another Ear Tuner instance.
@@ -124,6 +126,14 @@ runtime executable are enabled only on Linux when PipeWire development files are
 available. The POSIX HTTP transport is isolated from the core so another
 platform can provide its own transport or runtime adapter.
 
+The tracked submission-feedback executable was cross-built with Zig 0.17.1 for
+`x86_64-linux-gnu.2.34`, using Debian 12 PipeWire 0.3.65 development files. It
+is a stripped PIE with RELRO, immediate binding, and a nonexecutable stack; it
+requires glibc 2.34 or newer. This build includes the LLVM C++ runtime rather
+than linking system libstdc++; see the
+[third-party notices](../docs/THIRD_PARTY_NOTICES.md). Cross-compilation and
+host-side tests do not replace Linux packaging and live SteamOS validation.
+
 Use the repository service script rather than launching the filter alone. The
 script starts the backend without changing the default output. The backend
 publishes a paired WirePlumber smart filter, and WirePlumber routes applications
@@ -143,18 +153,34 @@ bash service.sh status
 bash service.sh stop
 ```
 
-Control endpoint:
+All native endpoints require a per-login bearer credential. `service.sh`
+provisions it in
+`${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ear-tuner/control.token` with mode
+`0600` inside a user-owned `0700` directory. Missing or insecure credentials
+fail closed; authenticated responses identify the protocol so an old,
+unauthenticated executable cannot pass readiness checks. Credentials stay out of
+URLs, process arguments, browser storage, logs, and release archives. This
+protects against websites and other users, not malicious code already running as
+the same user. Requests with an `Origin` header are rejected and no cross-origin
+access is enabled.
+
+Use the shared helper rather than putting the credential in a curl argument.
+From a checkout, the control endpoint is:
 
 ```bash
-curl "http://127.0.0.1:19285/api/v1/control?left=-3&right=1"
+python3 src/ear_tuner/control_credentials.py request \
+  "http://127.0.0.1:19285/api/v1/control?left=-3&right=1"
 ```
 
 Runtime audio diagnostics are available without changing controls:
 
 ```bash
-curl "http://127.0.0.1:19285/api/v1/diagnostics"
+python3 src/ear_tuner/control_credentials.py request \
+  "http://127.0.0.1:19285/api/v1/diagnostics"
 bash service.sh status
 ```
+
+In a packaged installation, use `ear_tuner/control_credentials.py` instead.
 
 The JSON reports ingress and output callback counts, lifetime maximum callback
 times in nanoseconds, callback deadline misses, and ring-buffer underruns and

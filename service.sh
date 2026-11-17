@@ -13,10 +13,6 @@ HTTP_PORT=19285
 CONTROL_API_URL="http://127.0.0.1:${HTTP_PORT}/api/v1/control"
 DIAGNOSTICS_API_URL="http://127.0.0.1:${HTTP_PORT}/api/v1/diagnostics"
 
-_runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-BACKEND_LOG="${_runtime}/ear-tuner-backend.log"
-BACKEND_PID_FILE="${_runtime}/ear-tuner-backend.pid"
-
 run_host() {
     if [[ -n "${FLATPAK_ID:-}" ]] && command -v flatpak-spawn > /dev/null 2>&1; then
         flatpak-spawn --host "$@"
@@ -25,17 +21,32 @@ run_host() {
     fi
 }
 
+CREDENTIALS_HELPER="${SCRIPT_DIR}/src/ear_tuner/control_credentials.py"
+if [[ ! -f "${CREDENTIALS_HELPER}" ]]; then
+    CREDENTIALS_HELPER="${SCRIPT_DIR}/ear_tuner/control_credentials.py"
+fi
+# shellcheck disable=SC2016 # Expanded by the host shell.
+_runtime=$(run_host sh -c 'printf "%s" "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"')
+BACKEND_LOG="${_runtime}/ear-tuner-backend.log"
+BACKEND_PID_FILE="${_runtime}/ear-tuner-backend.pid"
+
+control_request() {
+    run_host python3 "${CREDENTIALS_HELPER}" request "$1"
+}
+
 start_backend() {
     stop_backend
     if [[ ! -x "${BACKEND_BIN}" ]]; then
         echo "ERROR: ${BACKEND_BIN} not found" >&2
         return 1
     fi
+    local token_file
+    token_file=$(run_host python3 "${CREDENTIALS_HELPER}" ensure) || return 1
     echo "Starting native PipeWire backend..."
     # shellcheck disable=SC2016 # Expanded by the host shell.
     run_host sh -c \
-        'nohup "$2" > "$3" 2>&1 < /dev/null & echo "$!" > "$1"' \
-        sh "${BACKEND_PID_FILE}" "${BACKEND_BIN}" "${BACKEND_LOG}"
+        'nohup "$2" --control-token-file "$4" > "$3" 2>&1 < /dev/null & echo "$!" > "$1"' \
+        sh "${BACKEND_PID_FILE}" "${BACKEND_BIN}" "${BACKEND_LOG}" "${token_file}"
     echo "Backend launch requested"
 }
 
@@ -67,7 +78,7 @@ wait_for_http() {
     local timeout="${1:-10}"
     local elapsed=0
     echo "Waiting for backend HTTP..."
-    while ! curl -sf "${CONTROL_API_URL}?left=0&right=0" > /dev/null 2>&1; do
+    while ! control_request "${CONTROL_API_URL}?left=0&right=0" > /dev/null 2>&1; do
         sleep 0.5
         elapsed=$((elapsed + 1))
         if ((elapsed >= timeout * 2)); then
@@ -105,7 +116,7 @@ cmd_status() {
         echo "scheduler: TID CLS RTPRIO PRI COMMAND (FF/RR indicates real-time)"
         run_host ps -L -p "${pid}" -o tid=,cls=,rtprio=,pri=,comm= || true
         local diagnostics
-        diagnostics=$(curl -sf "${DIAGNOSTICS_API_URL}" 2> /dev/null || true)
+        diagnostics=$(control_request "${DIAGNOSTICS_API_URL}" 2> /dev/null || true)
         if [[ -n "${diagnostics}" ]]; then
             echo "audio    : ${diagnostics}"
         else

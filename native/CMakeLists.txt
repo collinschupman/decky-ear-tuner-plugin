@@ -179,14 +179,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
       decky_ear_tuner_backend PRIVATE ear_tuner_linux_pipewire
                                       ear_tuner_posix_http Threads::Threads
     )
-    add_test(
-      NAME decky_ear_tuner_backend_requires_pipewire
-      COMMAND ${CMAKE_COMMAND} -E env PIPEWIRE_REMOTE=ear-tuner-test-no-server
-              $<TARGET_FILE:decky_ear_tuner_backend>
+    add_test(NAME decky_ear_tuner_backend_requires_control_token
+             COMMAND $<TARGET_FILE:decky_ear_tuner_backend>
     )
     set_tests_properties(
-      decky_ear_tuner_backend_requires_pipewire PROPERTIES WILL_FAIL TRUE
-                                                           TIMEOUT 10
+      decky_ear_tuner_backend_requires_control_token PROPERTIES WILL_FAIL TRUE
+                                                                TIMEOUT 10
     )
   else()
     message(WARNING "PipeWire was not found; skipping Linux runtime executable")

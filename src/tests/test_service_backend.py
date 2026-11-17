@@ -1,6 +1,8 @@
 import os
+import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,7 +16,7 @@ class SmartFilterServiceTests(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name).resolve()
         self.runtime = self.root / "runtime"
-        self.runtime.mkdir()
+        self.runtime.mkdir(mode=0o700)
         self.service_script = self.root / "service.sh"
         self.service_script.write_text(
             SERVICE_SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
@@ -31,7 +33,7 @@ class SmartFilterServiceTests(unittest.TestCase):
         self.backend.parent.mkdir(parents=True)
         self._write_executable(
             self.backend,
-            "#!/bin/bash\nprintf 'backend development\n' >> \"$FAKE_COMMAND_LOG\"\n",
+            '#!/bin/bash\nprintf \'backend development %s\\n\' "$*" >> "$FAKE_COMMAND_LOG"\n',
         )
         self.release_backend = (
             self.root / "native" / "build" / "decky_ear_tuner_backend"
@@ -50,6 +52,9 @@ class SmartFilterServiceTests(unittest.TestCase):
                 "FAKE_COMMAND_LOG": str(self.command_log),
             }
         )
+        helper = self.root / "src" / "ear_tuner" / "control_credentials.py"
+        helper.parent.mkdir(parents=True)
+        shutil.copyfile(ROOT / "src/ear_tuner/control_credentials.py", helper)
         self._write_fake_commands()
 
     def tearDown(self):
@@ -61,9 +66,11 @@ class SmartFilterServiceTests(unittest.TestCase):
 
     def _write_fake_commands(self):
         self._write_executable(
-            self.bin / "curl",
+            self.bin / "python3",
             "#!/bin/bash\n"
-            'printf \'curl %s\\n\' "$*" >> "$FAKE_COMMAND_LOG"\n'
+            f'if [[ "$2" != request ]]; then exec "{sys.executable}" "$@"; fi\n'
+            "shift 2\n"
+            'printf \'control-request %s\\n\' "$*" >> "$FAKE_COMMAND_LOG"\n'
             'if [[ "${FAKE_CURL_STATUS:-0}" != 0 ]]; then\n'
             '    exit "$FAKE_CURL_STATUS"\n'
             "fi\n"
@@ -138,10 +145,34 @@ class SmartFilterServiceTests(unittest.TestCase):
         self.assertIn("Ear Tuner started", completed.stdout)
         self.assertTrue((self.runtime / "ear-tuner-backend.pid").exists())
         self.assertIn(
-            "curl -sf http://127.0.0.1:19285/api/v1/control?left=0&right=0",
+            "control-request http://127.0.0.1:19285/api/v1/control?left=0&right=0",
             self._commands(),
         )
         self.assertIn("backend development", self._commands())
+        token_path = self.runtime / "ear-tuner" / "control.token"
+        self.assertIn(f"--control-token-file {token_path}", self._commands())
+        self.assertNotIn(token_path.read_text().strip(), self._commands())
+
+    def test_start_fails_closed_when_credentials_cannot_be_provisioned(self):
+        self.runtime.chmod(0o755)
+        completed = self._run_service("start")
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("private permissions", completed.stderr)
+        self.assertNotIn("backend development", self._commands())
+        self.assertFalse((self.runtime / "ear-tuner-backend.pid").exists())
+
+    def test_start_uses_packaged_credentials_helper_when_source_is_excluded(self):
+        source = self.root / "src" / "ear_tuner" / "control_credentials.py"
+        packaged = self.root / "ear_tuner" / "control_credentials.py"
+        packaged.parent.mkdir()
+        source.rename(packaged)
+
+        completed = self._run_service("start")
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertTrue((self.runtime / "ear-tuner" / "control.token").exists())
+        self.assertIn("Ear Tuner started", completed.stdout)
 
     def test_start_leaves_output_selection_to_wireplumber(self):
         completed = self._run_service("start")

@@ -33,7 +33,6 @@ let settingsSaveFails = false
 let settingsSavePending = false
 let completePendingSettingsSave: ((applied: boolean) => void) | undefined
 let audioPlayFails = false
-let bypassRequestFails = false
 let requests: Array<{ url: string; init?: RequestInit }> = []
 let deckySettingsUpdates: EarTunerSettings[] = []
 let mockAudio: MockAudio
@@ -122,7 +121,6 @@ beforeEach(() => {
   settingsSavePending = false
   completePendingSettingsSave = undefined
   audioPlayFails = false
-  bypassRequestFails = false
   requests = []
   deckySettingsUpdates = []
   completePendingSettingsRead = undefined
@@ -178,9 +176,6 @@ beforeEach(() => {
         }
         return { ok: settingsSaveResult } as Response
       }
-      if (url.includes('focus_bypass=') && bypassRequestFails) {
-        throw new Error('Audio processing request failed')
-      }
       return { ok: true } as Response
     }),
   )
@@ -188,15 +183,27 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
-  vi.doUnmock('@decky/api')
-  Reflect.deleteProperty(
-    window,
-    '__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit',
-  )
   vi.unstubAllGlobals()
 })
 
 describe('Ear Tuner frontend', () => {
+  it('does not bypass failed Decky RPC with direct native HTTP requests', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { configureDeckyPersistence } = await import('./app')
+    const set = vi.fn(async () => {
+      throw new Error('RPC unavailable')
+    })
+    configureDeckyPersistence({
+      get: async () => ({ ...currentSettings }),
+      set,
+    })
+    const user = await renderApp()
+    await user.click(screen.getByRole('checkbox', { name: /Enable Ear Tuner/ }))
+    await waitFor(() => expect(set).toHaveBeenCalled())
+    expect(await screen.findByText(/Settings were not confirmed/)).toBeTruthy()
+    expect(requests).toEqual([])
+  })
+
   it('shows a loading state until persisted settings arrive', async () => {
     settingsRequestPending = true
     const { App } = await import('./app')
@@ -652,14 +659,11 @@ describe('Ear Tuner frontend', () => {
         return true
       }),
     }
-    vi.doMock('@decky/api', () => ({
-      callable: (method: keyof typeof deckyApi) => deckyApi[method],
-    }))
-    Object.defineProperty(
-      window,
-      '__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit',
-      { configurable: true, value: true },
-    )
+    const { configureDeckyPersistence } = await import('./app')
+    configureDeckyPersistence({
+      get: deckyApi.get_ear_tuner,
+      set: deckyApi.set_ear_tuner,
+    })
 
     const user = await renderApp()
     expect(deckyApi.get_ear_tuner).toHaveBeenCalledOnce()
@@ -681,7 +685,9 @@ describe('Ear Tuner frontend', () => {
   it('renders the guide, opens project links, and returns to controls', async () => {
     const { DeckyInfoPage } = await import('./app')
     const onBack = vi.fn()
-    const openWindow = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const navigate = vi
+      .spyOn(previewDeckyUi.Navigation, 'NavigateToExternalWeb')
+      .mockImplementation(() => undefined)
     const user = userEvent.setup()
     render(
       <DeckyPreviewShell title="Ear Tuner Guide">
@@ -700,17 +706,13 @@ describe('Ear Tuner frontend', () => {
     ).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Report an Issue' }))
     await user.click(screen.getByRole('button', { name: 'Suggest an Idea' }))
-    expect(openWindow).toHaveBeenNthCalledWith(
+    expect(navigate).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining('/issues/new'),
-      '_blank',
-      'noopener,noreferrer',
     )
-    expect(openWindow).toHaveBeenNthCalledWith(
+    expect(navigate).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('/discussions/new'),
-      '_blank',
-      'noopener,noreferrer',
     )
 
     await user.click(screen.getByRole('button', { name: 'Back to Controls' }))
@@ -907,22 +909,6 @@ describe('Ear Tuner frontend', () => {
     expect(outerScrollContainer.scrollTop).toBe(0)
   })
 
-  it('restores processing on load without exposing a comparison toggle', async () => {
-    await renderApp()
-
-    await waitFor(() => {
-      expect(
-        requests.some((request) => request.url.includes('focus_bypass=0')),
-      ).toBe(true)
-    })
-    expect(
-      screen.queryByRole('checkbox', { name: /Compare Ear Tuner Settings/ }),
-    ).toBeNull()
-    expect(
-      requests.some((request) => request.url.includes('focus_bypass=1')),
-    ).toBe(false)
-  })
-
   it('reverts Enable when the backend rejects the settings update', async () => {
     currentSettings = { ...initialSettings, enabled: false }
     settingsSaveResult = false
@@ -938,146 +924,6 @@ describe('Ear Tuner frontend', () => {
         }) as HTMLInputElement
       ).checked,
     ).toBe(false)
-  })
-
-  it('uses native control fallback when Decky RPC cannot load', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    storage.set('focus-enabled', 'true')
-    storage.set('focus-mode-right', '3')
-    storage.set('focus-level-right', '1')
-    vi.doMock('@decky/api', () => {
-      throw new Error('Decky RPC unavailable')
-    })
-    Object.defineProperty(
-      window,
-      '__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit',
-      { configurable: true, value: true },
-    )
-
-    const user = await renderApp()
-    await waitFor(() => {
-      expect(
-        requests.some((request) =>
-          request.url.includes('/api/v1/control?focus_enabled=1'),
-        ),
-      ).toBe(true)
-    })
-    await user.click(
-      screen.getByRole('checkbox', { name: /Adjust Ears Separately/ }),
-    )
-    await waitFor(() =>
-      expect(
-        requests.some((request) =>
-          request.url.includes('right_mode=3&right_level=1'),
-        ),
-      ).toBe(true),
-    )
-    const nativeRequestCount = requests.filter((request) =>
-      request.url.startsWith('http://127.0.0.1:19285/api/v1/control?'),
-    ).length
-
-    await user.click(screen.getAllByRole('button', { name: 'Change' })[0])
-    await user.click(
-      await screen.findByRole('button', { name: 'High Frequencies' }),
-    )
-
-    await waitFor(() => {
-      expect(
-        requests.filter((request) =>
-          request.url.startsWith('http://127.0.0.1:19285/api/v1/control?'),
-        ).length,
-      ).toBeGreaterThan(nativeRequestCount)
-    })
-    const modeRequests = requests.filter((request) =>
-      request.url.startsWith('http://127.0.0.1:19285/api/v1/control?'),
-    )
-    const modeRequest = modeRequests[modeRequests.length - 1]
-    expect(
-      new URL(String(modeRequest?.url)).searchParams.get('left_mode'),
-    ).toBe('3')
-    expect(
-      new URL(String(modeRequest?.url)).searchParams.get('right_mode'),
-    ).toBe('3')
-  })
-
-  it('uses the native settings fallback while Ear Tuner is disabled', async () => {
-    storage.set('focus-enabled', 'false')
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    vi.doMock('@decky/api', () => {
-      throw new Error('Decky RPC unavailable')
-    })
-    Object.defineProperty(
-      window,
-      '__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit',
-      { configurable: true, value: true },
-    )
-
-    await renderApp()
-
-    await waitFor(() =>
-      expect(
-        requests.some((request) =>
-          request.url.includes('/api/v1/control?focus_enabled=0'),
-        ),
-      ).toBe(true),
-    )
-  })
-
-  it('sends shared mode changes through the disabled native fallback', async () => {
-    storage.set('focus-enabled', 'false')
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    vi.doMock('@decky/api', () => {
-      throw new Error('Decky RPC unavailable')
-    })
-    Object.defineProperty(
-      window,
-      '__DECKY_SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED_deckyLoaderAPIInit',
-      { configurable: true, value: true },
-    )
-    const deckyUi: DeckyUiComponents = {
-      ...previewDeckyUi,
-      DialogButton: ({ children, className, onClick }: DialogButtonProps) => (
-        <button
-          className={className}
-          onClick={(event) => onClick?.(event.nativeEvent)}
-        >
-          {children}
-        </button>
-      ),
-    }
-    const user = await renderApp(deckyUi)
-
-    await user.click(screen.getByRole('button', { name: 'Change' }))
-    await user.click(
-      await screen.findByRole('button', { name: 'High Frequencies' }),
-    )
-
-    await waitFor(() =>
-      expect(
-        requests.some((request) =>
-          request.url.includes(
-            'focus_enabled=0&left_mode=3&left_level=2&right_mode=3&right_level=2',
-          ),
-        ),
-      ).toBe(true),
-    )
-  })
-
-  it('logs a failed processing restore without crashing the controls', async () => {
-    bypassRequestFails = true
-    const logError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined)
-
-    await renderApp()
-
-    await waitFor(() =>
-      expect(logError).toHaveBeenCalledWith(
-        'Could not restore audio processing:',
-        expect.any(Error),
-      ),
-    )
-    expect(screen.getByRole('button', { name: 'Change' })).toBeTruthy()
   })
 
   it('restores the right mode when the backend rejects a right-channel change', async () => {

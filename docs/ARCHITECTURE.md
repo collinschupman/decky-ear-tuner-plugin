@@ -135,10 +135,18 @@ backend target to build successfully before it can use an executable; an
 existing tracked binary is not a fallback for missing PipeWire build
 dependencies.
 
-The archive layout differs from the checkout: packaging copies `src/ear_tuner/`
-to the archive's root `ear_tuner/`. The root Python entrypoint supports both
-layouts. The service prefers the development executable under
-`native/build-current/` when present and otherwise uses the release executable.
+The standard frontend/store build also stages `src/ear_tuner/` Python modules at
+root `ear_tuner/`, outside the store builder's excluded `src/` directory.
+Archive packaging uses that staged package; cached bytecode and runtime
+credentials are not staged. The root Python entrypoint supports both layouts.
+The service prefers the development executable under `native/build-current/`
+when present and otherwise uses the release executable.
+
+Decky settings travel through public Decky RPC methods, not direct browser
+requests to the native service. The Python coordinator and service script
+authenticate native requests using a private per-login runtime credential; every
+native endpoint checks it before reading or mutating state. See the native guide
+for credential permissions and authenticated diagnostic commands.
 
 See [DEVELOPERS.md](DEVELOPERS.md) for setup and checks, and the
 [native backend guide](../native/README.md) for the control API and DSP details.

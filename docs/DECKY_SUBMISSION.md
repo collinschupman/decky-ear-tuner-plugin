@@ -60,10 +60,15 @@ Inspect the archive under `release/` before submitting. It must include the
 Decky bundle, `package.json`, `main.py`, the `ear_tuner/` Python package,
 `service.sh`, the BSD-3-Clause `LICENSE`, and the native backend executable.
 
-Packaging copies the Python package from `src/ear_tuner/` to root `ear_tuner/`
-inside the archive. It also produces `install-beta.sh` and a SHA-256 checksum
-beside the archive. Test the archive installation separately from the linked
-development checkout.
+The standard `pnpm run build` (and `build:decky`) stages Python modules from
+`src/ear_tuner/` into root `ear_tuner/`, so the store builder can exclude `src/`
+without losing the runtime. It uses the reviewed, tracked Linux executable
+without requiring PipeWire development libraries in the store builder.
+`package:decky` additionally rebuilds and tests the native executable on a Linux
+build host, then copies the staged Python package into the archive. It also
+produces `install-beta.sh` and a SHA-256 checksum beside the archive. Never
+include runtime credentials. Test the archive installation separately from the
+linked development checkout.
 
 ## Release archive installation
 

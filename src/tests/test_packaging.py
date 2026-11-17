@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,45 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PackagingTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for build staging")
+    def test_staged_runtime_imports_without_source_and_excludes_development_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "scripts" / "stage_runtime.mjs"
+            script.parent.mkdir()
+            shutil.copyfile(ROOT / "scripts" / "stage_runtime.mjs", script)
+            source = root / "src" / "ear_tuner"
+            shutil.copytree(ROOT / "src" / "ear_tuner", source)
+            (source / "control.token").write_text("must not ship")
+            destination = root / "ear_tuner"
+            destination.mkdir()
+            (destination / "obsolete.py").touch()
+            shutil.copyfile(ROOT / "main.py", root / "main.py")
+
+            completed = subprocess.run(
+                ["node", str(script)], capture_output=True, text=True, check=False
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                {path.name for path in destination.iterdir()},
+                {path.name for path in source.glob("*.py")},
+            )
+            (root / "src").rename(root / "excluded-src")
+            imported = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-c",
+                    "import sys; sys.path.insert(0, '.'); import main; "
+                    "from ear_tuner.control_credentials import control_request",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(imported.returncode, 0, imported.stderr)
+
     def test_packaging_requires_backend_target_even_when_a_stale_binary_exists(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

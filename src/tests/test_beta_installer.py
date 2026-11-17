@@ -1,4 +1,5 @@
 import os
+import shutil
 import stat
 import subprocess
 import tarfile
@@ -102,6 +103,60 @@ class BetaInstallerTests(unittest.TestCase):
         )
         self.assertIn(f"-C {self.decky_home}/.ear-tuner.stage.", extraction_command)
         self.assertNotIn(str(self.decky_home / "plugins"), extraction_command)
+
+
+class DevelopmentInstallerTests(unittest.TestCase):
+    def test_steamos_missing_dependencies_never_requests_privilege_or_changes_packages(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            release = root / "os-release"
+            release.write_text("ID=steamos\nID_LIKE=arch\n")
+            script = root / "install-decky.sh"
+            script.write_text(
+                (ROOT / "install-decky.sh")
+                .read_text()
+                .replace(". /etc/os-release", f'. "{release}"')
+            )
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            commands = {
+                "dirname": shutil.which("dirname"),
+                "bash": shutil.which("bash"),
+            }
+            for name, executable in commands.items():
+                (bin_dir / name).symlink_to(executable)
+            command_log = root / "unsafe-commands.log"
+            for name in (
+                "sudo",
+                "pacman",
+                "steamos-readonly",
+                "apt-get",
+                "dnf",
+                "zypper",
+            ):
+                executable = bin_dir / name
+                executable.write_text(
+                    '#!/bin/sh\nprintf "%s\\n" "$0 $*" >> "$COMMAND_LOG"\nexit 99\n'
+                )
+                executable.chmod(0o755)
+            result = subprocess.run(
+                [str(bin_dir / "bash"), str(script)],
+                env={
+                    **os.environ,
+                    "PATH": str(bin_dir),
+                    "FLATPAK_ID": "",
+                    "COMMAND_LOG": str(command_log),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("does not change SteamOS/Arch system packages", result.stderr)
+            self.assertIn("prebuilt release", result.stderr)
+            self.assertFalse(command_log.exists())
 
 
 if __name__ == "__main__":

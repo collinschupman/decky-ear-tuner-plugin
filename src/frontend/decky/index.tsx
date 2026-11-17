@@ -1,4 +1,4 @@
-import { definePlugin, useQuickAccessVisible } from '@decky/api'
+import { callable, definePlugin, useQuickAccessVisible } from '@decky/api'
 import {
   ButtonItem,
   DialogButton,
@@ -6,6 +6,7 @@ import {
   GamepadButton,
   Menu,
   MenuItem,
+  Navigation,
   PanelSection,
   PanelSectionRow,
   SliderField,
@@ -15,7 +16,12 @@ import {
 } from '@decky/ui'
 import React from 'react'
 
-import { DeckyPluginContent, stopAuditionSample } from './app'
+import {
+  configureDeckyPersistence,
+  DeckyPluginContent,
+  stopAuditionSample,
+} from './app'
+import type { EarTunerSettings } from './app'
 import styles from './styles.css'
 
 const deckyUi = {
@@ -25,6 +31,7 @@ const deckyUi = {
   GamepadButton,
   Menu,
   MenuItem,
+  Navigation,
   PanelSection,
   PanelSectionRow,
   SliderField,
@@ -82,6 +89,10 @@ function DeckyApp() {
 }
 
 export default definePlugin(() => {
+  configureDeckyPersistence({
+    get: callable<[], EarTunerSettings>('get_ear_tuner'),
+    set: callable<[EarTunerSettings], boolean>('set_ear_tuner'),
+  })
   return {
     name: 'Ear Tuner',
     titleView: <div>Ear Tuner</div>,

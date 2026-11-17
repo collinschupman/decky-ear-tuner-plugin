@@ -2,6 +2,7 @@ node_modules/
 package-lock.json
 dist/
 dist-web/
+/ear_tuner/
 release/
 .vscode/*
 !.vscode/settings.json
