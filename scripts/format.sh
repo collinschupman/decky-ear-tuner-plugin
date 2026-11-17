@@ -38,7 +38,8 @@ done < <(find src/native src/dsp -type f \( -name '*.h' -o -name '*.cpp' \))
 "${RUFF}" check --fix main.py src/ear_tuner src/tests
 "${RUFF}" format main.py src/ear_tuner src/tests
 "${CLANG_FORMAT}" -i "${CPP_FILES[@]}"
-"${CMAKE_FORMAT}" -i native/CMakeLists.txt native/cmake/check_rtsan_guard.cmake
+"${CMAKE_FORMAT}" -i native/CMakeLists.txt native/cmake/check_rtsan_guard.cmake \
+    native/cmake/windows.cmake
 "${SHFMT}" -w -i 4 -ci -sr \
     install-decky.sh service.sh uninstall-decky.sh update-decky.sh \
     .githooks/pre-push scripts/*.sh

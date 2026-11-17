@@ -71,6 +71,12 @@ output normally.
 Turn Ear Tuner off when switching from stereo headphones to speakers or another
 output.
 
+## Windows desktop preview
+
+Experimental standalone Windows support using VB-CABLE and WASAPI is available
+from source; see the [Windows desktop guide](docs/WINDOWS.md). It is separate
+from the submitted Decky release and still needs live Windows audio acceptance.
+
 ## I'd love your feedback
 
 Tell me how Ear Tuner works for you: what helps, what doesn't, what feels

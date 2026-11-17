@@ -192,3 +192,5 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(WARNING "PipeWire was not found; skipping Linux runtime executable")
   endif()
 endif()
+
+include(cmake/windows.cmake)

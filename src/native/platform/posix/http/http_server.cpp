@@ -3,18 +3,13 @@
 #include "ear_tuner/focus_types.h"
 #include "http/http_parse.h"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <unistd.h>
 #include <cerrno>
 #include <cstring>
 #include <iostream>
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <string>
 
 namespace {
@@ -37,17 +32,16 @@ std::string DiagnosticsResponse(const std::string &body)
            "\r\nX-Ear-Tuner-API-Version: 1\r\nAccess-Control-Allow-Origin: *\r\n\r\n" + body;
 }
 
-bool MakeNonblocking(int fd)
+bool MakeNonblocking(HttpSocket::Handle fd)
 {
-    const int flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        std::cerr << "native http nonblocking setup failed: " << std::strerror(errno) << "\n";
+    if (!HttpSocket::Nonblocking(fd)) {
+        std::cerr << "native http nonblocking setup failed: " << HttpSocket::ErrorMessage() << "\n";
         return false;
     }
     return true;
 }
 
-bool WaitForClient(int fd, short events, const PosixHttpServerState &state,
+bool WaitForClient(HttpSocket::Handle fd, short events, const PosixHttpServerState &state,
                    Clock::time_point deadline)
 {
     while (!state.mStopRequested.load(std::memory_order_relaxed)) {
@@ -57,10 +51,10 @@ bool WaitForClient(int fd, short events, const PosixHttpServerState &state,
             std::cerr << "native http client deadline exceeded\n";
             return false;
         }
-        pollfd descriptor{fd, events, 0};
-        const int result =
-            poll(&descriptor, 1,
-                 static_cast<int>(std::min<int64_t>(remaining.count(), kStopPollMilliseconds)));
+        HttpSocket::PollDescriptor descriptor{fd, events, 0};
+        const int result = HttpSocket::Poll(
+            &descriptor,
+            static_cast<int>(std::min<int64_t>(remaining.count(), kStopPollMilliseconds)));
         if (result > 0) {
             if (descriptor.revents & events) {
                 return true;
@@ -68,24 +62,25 @@ bool WaitForClient(int fd, short events, const PosixHttpServerState &state,
             std::cerr << "native http client disconnected\n";
             return false;
         }
-        if (result < 0 && errno != EINTR) {
-            std::cerr << "native http client poll failed: " << std::strerror(errno) << "\n";
+        if (result < 0 && !HttpSocket::Retryable()) {
+            std::cerr << "native http client poll failed: " << HttpSocket::ErrorMessage() << "\n";
             return false;
         }
     }
     return false;
 }
 
-bool ReadRequest(int fd, const PosixHttpServerState &state, Clock::time_point deadline,
-                 std::string &request)
+bool ReadRequest(HttpSocket::Handle fd, const PosixHttpServerState &state,
+                 Clock::time_point deadline, std::string &request)
 {
     while (request.size() < kMaximumRequestBytes) {
         if (!WaitForClient(fd, POLLIN, state, deadline)) {
             return false;
         }
         char buffer[512];
-        const ssize_t received =
-            recv(fd, buffer, std::min(sizeof(buffer), kMaximumRequestBytes - request.size()), 0);
+        const auto received = recv(
+            fd, buffer,
+            static_cast<int>(std::min(sizeof(buffer), kMaximumRequestBytes - request.size())), 0);
         if (received > 0) {
             request.append(buffer, static_cast<size_t>(received));
             if (request.find("\r\n\r\n") != std::string::npos) {
@@ -94,8 +89,8 @@ bool ReadRequest(int fd, const PosixHttpServerState &state, Clock::time_point de
         } else if (received == 0) {
             std::cerr << "native http incomplete request\n";
             return false;
-        } else if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
-            std::cerr << "native http receive failed: " << std::strerror(errno) << "\n";
+        } else if (!HttpSocket::Retryable()) {
+            std::cerr << "native http receive failed: " << HttpSocket::ErrorMessage() << "\n";
             return false;
         }
     }
@@ -103,8 +98,8 @@ bool ReadRequest(int fd, const PosixHttpServerState &state, Clock::time_point de
     return false;
 }
 
-void SendResponse(int fd, const char *response, size_t size, const PosixHttpServerState &state,
-                  Clock::time_point deadline)
+void SendResponse(HttpSocket::Handle fd, const char *response, size_t size,
+                  const PosixHttpServerState &state, Clock::time_point deadline)
 {
     size_t offset = 0;
     while (offset < size && WaitForClient(fd, POLLOUT, state, deadline)) {
@@ -113,11 +108,15 @@ void SendResponse(int fd, const char *response, size_t size, const PosixHttpServ
 #else
         constexpr int flags = 0;
 #endif
-        const ssize_t sent = send(fd, response + offset, size - offset, flags);
+        const auto sent =
+            send(fd, response + offset,
+                 static_cast<int>(
+                     std::min(size - offset, static_cast<size_t>(std::numeric_limits<int>::max()))),
+                 flags);
         if (sent > 0) {
             offset += static_cast<size_t>(sent);
-        } else if (sent == 0 || (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)) {
-            std::cerr << "native http send failed: " << std::strerror(errno) << "\n";
+        } else if (sent == 0 || !HttpSocket::Retryable()) {
+            std::cerr << "native http send failed: " << HttpSocket::ErrorMessage() << "\n";
             return;
         }
     }
@@ -135,13 +134,28 @@ void RunHttpServer(EarTunerControlState &controlState, PosixHttpServerState &ser
     if (serverState.mStopRequested.load(std::memory_order_relaxed)) {
         return;
     }
-    const int serverFd = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverFd < 0) {
-        std::cerr << "native http socket failed: " << std::strerror(errno) << "\n";
+    HttpSocket::Runtime runtime;
+    if (runtime.Error() != 0) {
+        std::cerr << "native http initialization failed: " << runtime.Error() << "\n";
+        return;
+    }
+    const auto serverFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverFd == HttpSocket::kInvalid) {
+        std::cerr << "native http socket failed: " << HttpSocket::ErrorMessage() << "\n";
         return;
     }
     int reuseAddress = 1;
-    setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, &reuseAddress, sizeof(reuseAddress));
+#ifdef _WIN32
+    constexpr int reuseOption = SO_EXCLUSIVEADDRUSE;
+#else
+    constexpr int reuseOption = SO_REUSEADDR;
+#endif
+    if (setsockopt(serverFd, SOL_SOCKET, reuseOption, reinterpret_cast<const char *>(&reuseAddress),
+                   sizeof(reuseAddress)) != 0) {
+        std::cerr << "native http address option failed: " << HttpSocket::ErrorMessage() << "\n";
+        HttpSocket::Close(serverFd);
+        return;
+    }
 
     sockaddr_in address{};
     address.sin_family = AF_INET;
@@ -151,9 +165,9 @@ void RunHttpServer(EarTunerControlState &controlState, PosixHttpServerState &ser
     if (!MakeNonblocking(serverFd) ||
         bind(serverFd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) < 0 ||
         listen(serverFd, 5) < 0) {
-        std::cerr << "native http setup failed: " << std::strerror(errno) << "\n";
-        close(serverFd);
-        serverState.mServerFd.store(-1, std::memory_order_relaxed);
+        std::cerr << "native http setup failed: " << HttpSocket::ErrorMessage() << "\n";
+        HttpSocket::Close(serverFd);
+        serverState.mServerFd.store(HttpSocket::kInvalid, std::memory_order_relaxed);
         return;
     }
     serverState.mServerFd.store(serverFd, std::memory_order_relaxed);
@@ -169,32 +183,32 @@ void RunHttpServer(EarTunerControlState &controlState, PosixHttpServerState &ser
         "Access-Control-Allow-Origin: *\r\n\r\nBad Request";
 
     while (!serverState.mStopRequested.load(std::memory_order_relaxed)) {
-        pollfd listener{serverFd, POLLIN, 0};
-        const int ready = poll(&listener, 1, kStopPollMilliseconds);
-        if (ready == 0 || (ready < 0 && errno == EINTR)) {
+        HttpSocket::PollDescriptor listener{serverFd, POLLIN, 0};
+        const int ready = HttpSocket::Poll(&listener, kStopPollMilliseconds);
+        if (ready == 0 || (ready < 0 && HttpSocket::Retryable())) {
             continue;
         }
         if (ready < 0 || !(listener.revents & POLLIN)) {
             std::cerr << "native http listener poll failed\n";
             break;
         }
-        const int clientFd = accept(serverFd, nullptr, nullptr);
-        if (clientFd < 0) {
-            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+        const auto clientFd = accept(serverFd, nullptr, nullptr);
+        if (clientFd == HttpSocket::kInvalid) {
+            if (HttpSocket::Retryable()) {
                 continue;
             }
-            std::cerr << "native http accept failed: " << std::strerror(errno) << "\n";
+            std::cerr << "native http accept failed: " << HttpSocket::ErrorMessage() << "\n";
             break;
         }
         if (!MakeNonblocking(clientFd)) {
-            close(clientFd);
+            HttpSocket::Close(clientFd);
             continue;
         }
 #ifdef SO_NOSIGPIPE
         int noSigpipe = 1;
         if (setsockopt(clientFd, SOL_SOCKET, SO_NOSIGPIPE, &noSigpipe, sizeof(noSigpipe)) < 0) {
             std::cerr << "native http SIGPIPE setup failed: " << std::strerror(errno) << "\n";
-            close(clientFd);
+            HttpSocket::Close(clientFd);
             continue;
         }
 #endif
@@ -270,8 +284,8 @@ void RunHttpServer(EarTunerControlState &controlState, PosixHttpServerState &ser
             dynamicResponse.empty() ? (valid ? sizeof(kOkResponse) - 1 : sizeof(kBadResponse) - 1)
                                     : dynamicResponse.size();
         SendResponse(clientFd, response, responseSize, serverState, deadline);
-        close(clientFd);
+        HttpSocket::Close(clientFd);
     }
-    serverState.mServerFd.store(-1, std::memory_order_relaxed);
-    close(serverFd);
+    serverState.mServerFd.store(HttpSocket::kInvalid, std::memory_order_relaxed);
+    HttpSocket::Close(serverFd);
 }

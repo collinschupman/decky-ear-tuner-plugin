@@ -3,6 +3,10 @@
 #if defined(__GNUC__) || defined(__clang__)
 /** Four-lane SIMD storage used for two-channel audio samples. */
 using SimdFloat4 = float __attribute__((vector_size(16)));
+#else
+#include <array>
+using SimdFloat4 = std::array<float, 4>;
+#endif
 
 /** Packs two channel samples into the first two lanes of a SIMD value. */
 inline SimdFloat4 MakeSimdFloat4(float first, float second)
@@ -34,4 +38,3 @@ struct StereoFrame {
         mSamples[1] = right;
     }
 };
-#endif

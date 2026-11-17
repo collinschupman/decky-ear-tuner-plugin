@@ -1,13 +1,15 @@
 import asyncio
+import http.client
 import urllib.request
 
+from ear_tuner.application_service import Logger
 from ear_tuner.settings import EarTunerSettings
 
 
 class BackendClient:
     """Client for the local native Ear Tuner control endpoint."""
 
-    def __init__(self, control_api_url: str, logger):
+    def __init__(self, control_api_url: str, logger: Logger):
         self._control_api_url = control_api_url
         self._logger = logger
 
@@ -26,7 +28,7 @@ class BackendClient:
         try:
             await self._request(url, timeout=2)
             return True
-        except OSError as exc:
+        except (OSError, http.client.HTTPException) as exc:
             self._logger.warning("Could not push Ear Tuner settings: %s", exc)
             return False
 
@@ -34,7 +36,7 @@ class BackendClient:
         try:
             await self._request(f"{self._control_api_url}?left=0&right=0", timeout=1)
             return True
-        except OSError:
+        except (OSError, http.client.HTTPException):
             return False
 
     @staticmethod

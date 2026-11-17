@@ -13,9 +13,9 @@ class SettingsStore(Protocol):
 
 
 class Logger(Protocol):
-    def info(self, message: str, *args) -> None: ...
+    def info(self, message: str, /, *args: object) -> None: ...
 
-    def warning(self, message: str, *args) -> None: ...
+    def warning(self, message: str, /, *args: object) -> None: ...
 
 
 class AudioRoutingControl(Protocol):
@@ -83,7 +83,7 @@ class EarTunerCoordinator:
             self._stopped = True
             return await self._audio_routing.execute("uninstall")
 
-    async def set_ear_tuner(self, value: dict) -> bool:
+    async def set_ear_tuner(self, value: dict[str, object]) -> bool:
         async with self._lifecycle_lock:
             if self._stopped:
                 self._logger.warning(
@@ -92,7 +92,7 @@ class EarTunerCoordinator:
                 return False
             return await self._set_ear_tuner(value)
 
-    async def _set_ear_tuner(self, value: dict) -> bool:
+    async def _set_ear_tuner(self, value: dict[str, object]) -> bool:
         normalized = normalize_ear_tuner(value)
         previous = await self.get_ear_tuner()
         mode_changed = (

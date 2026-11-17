@@ -1,0 +1,58 @@
+name: Windows desktop
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9.15.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Build and test native Windows targets
+        run: |
+          cmake -S native -B native/build-current -A x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build native/build-current --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir native/build-current -C Release --output-on-failure --timeout 120
+
+      - name: Test Windows lifecycle, browser API, and real singleton locks
+        env:
+          PYTHONPATH: src
+          PYTHONASYNCIODEBUG: '1'
+          PYTHONWARNINGS: error
+        run: >-
+          python -m unittest tests.test_windows_service
+          tests.test_windows_desktop tests.test_desktop_server
+          tests.test_application_service tests.test_backend_client -v
+
+      - name: Build shared browser UI
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm run typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm run build:web
