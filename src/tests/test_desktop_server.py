@@ -2,6 +2,7 @@ import asyncio
 import http.client
 import io
 import json
+import socket
 import tempfile
 import threading
 import unittest
@@ -201,6 +202,34 @@ class DesktopServerTests(unittest.TestCase):
 
         handler.copyfile(io.BytesIO(b"content"), DisconnectedClient())
 
+    def test_partial_request_body_cannot_prevent_desktop_shutdown(self):
+        self._start_server()
+        entered = threading.Event()
+        handler = self.server_holder[0].RequestHandlerClass
+        original = handler.do_POST
+
+        def partial_post(request):
+            entered.set()
+            return original(request)
+
+        with patch.object(handler, "do_POST", partial_post):
+            client = socket.create_connection((self.host, self.port), timeout=1)
+            try:
+                client.sendall(
+                    b"POST /api/ear-tuner HTTP/1.1\r\n"
+                    b"Host: localhost\r\nContent-Length: 100\r\n\r\n{"
+                )
+                self.assertTrue(entered.wait(timeout=1))
+                self.server_holder[0].shutdown()
+                self.thread.join(timeout=7)
+                self.assertFalse(self.thread.is_alive())
+                self.assertTrue(self.plugin.stopped)
+                self.assertIn(b"408", client.recv(4096))
+                self.assertEqual(self.plugin.applied_values, [])
+            finally:
+                client.shutdown(socket.SHUT_WR)
+                client.close()
+
     def test_keyboard_interrupt_still_closes_server_and_stops_plugin(self):
         fake_server = Mock()
         fake_server.serve_forever.side_effect = KeyboardInterrupt
@@ -217,9 +246,11 @@ class DesktopServerTests(unittest.TestCase):
             async def restore(self):
                 raise RuntimeError("restore failed")
 
+        plugin = BrokenPlugin()
         with self.assertRaisesRegex(RuntimeError, "restore failed"):
-            run_desktop_server(str(self.root), BrokenPlugin, "127.0.0.1", 0)
+            run_desktop_server(str(self.root), lambda: plugin, "127.0.0.1", 0)
         self.assertFalse(self.server_holder)
+        self.assertTrue(plugin.stopped)
 
 
 if __name__ == "__main__":

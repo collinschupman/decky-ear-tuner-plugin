@@ -1,6 +1,5 @@
 ---
 BasedOnStyle: Google
-Language: Cpp
 ColumnLimit: 100
 IndentWidth: 4
 ContinuationIndentWidth: 4

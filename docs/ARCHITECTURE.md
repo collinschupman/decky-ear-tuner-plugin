@@ -103,6 +103,14 @@ The portable DSP/core targets and tests do not require PipeWire. The POSIX HTTP
 transport is separate from the core, and the Linux runtime is only enabled when
 the PipeWire development package is available.
 
+On macOS, `ear_tuner_macos` composes the same core and POSIX control transport
+with `src/native/platform/macos/`. Its private Core Audio aggregate uses a
+separately installed BlackHole 2ch input and a selected physical output with
+drift compensation. `ear_tuner.macos_desktop` hosts the built browser UI and
+application coordinator, while `ear_tuner.macos_service` owns the native
+process. The Decky entrypoint and Linux service are not used by this desktop
+host. See [MACOS.md](MACOS.md) for setup, routing boundaries, and validation.
+
 ## Production boundary
 
 The Decky UI and compiled native runtime ship with the plugin. The reviewed

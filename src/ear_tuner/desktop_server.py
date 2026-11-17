@@ -3,12 +3,27 @@ import json
 import os
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from typing import Callable, Protocol
 from urllib.parse import urlparse
+
+from ear_tuner.settings import EarTunerSettings
+
+
+class DesktopPlugin(Protocol):
+    async def restore(self) -> None: ...
+
+    async def stop(self) -> bool: ...
+
+    async def get_ear_tuner(self) -> EarTunerSettings: ...
+
+    async def set_ear_tuner(self, value: dict[str, object]) -> bool: ...
+
+    async def get_service_status(self) -> dict[str, bool]: ...
 
 
 def run_desktop_server(
     script_directory: str,
-    create_plugin,
+    create_plugin: Callable[[], DesktopPlugin],
     host: str = "127.0.0.1",
     port: int = 5173,
 ) -> None:
@@ -26,16 +41,17 @@ def run_desktop_server(
 
 def _serve_desktop_server(
     script_directory: str,
-    create_plugin,
+    create_plugin: Callable[[], DesktopPlugin],
     host: str,
     port: int,
     loop: asyncio.AbstractEventLoop,
 ) -> None:
     web_root = os.path.join(script_directory, "dist-web")
     plugin = create_plugin()
-    asyncio.run_coroutine_threadsafe(plugin.restore(), loop).result()
 
     class DesktopHandler(SimpleHTTPRequestHandler):
+        timeout = 5
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=web_root, **kwargs)
 
@@ -93,11 +109,15 @@ def _serve_desktop_server(
                     plugin.set_ear_tuner(value), loop
                 ).result()
                 self.send_json(200 if applied else 503, {"applied": applied})
+            except TimeoutError:
+                self.send_json(408, {"error": "request body timed out"})
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 self.send_json(400, {"error": str(exc)})
 
     server = None
+    startup = asyncio.run_coroutine_threadsafe(plugin.restore(), loop)
     try:
+        startup.result()
         server = ThreadingHTTPServer((host, port), DesktopHandler)
         server.daemon_threads = False
         print(f"Ear Tuner desktop UI: http://{host}:{port}/", flush=True)
@@ -105,6 +125,8 @@ def _serve_desktop_server(
     except KeyboardInterrupt:
         pass
     finally:
+        if not startup.done():
+            startup.cancel()
         if server is not None:
             server.server_close()
         asyncio.run_coroutine_threadsafe(plugin.stop(), loop).result()

@@ -32,7 +32,7 @@ cd "${ROOT_DIR}"
 CPP_FILES=()
 while IFS= read -r file_path; do
     CPP_FILES+=("${file_path}")
-done < <(find src/native src/dsp -type f \( -name '*.h' -o -name '*.cpp' \))
+done < <(find src/native src/dsp -type f \( -name '*.h' -o -name '*.cpp' -o -name '*.mm' \))
 
 "${PRETTIER}" --write .
 "${RUFF}" check --fix main.py src/ear_tuner src/tests

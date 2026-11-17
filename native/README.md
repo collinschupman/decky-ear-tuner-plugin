@@ -44,8 +44,8 @@ ctest --test-dir native/build-current --output-on-failure
 Audio callbacks must not allocate or free heap memory, lock mutexes, or perform
 blocking I/O. The optional
 [RealtimeSanitizer](https://clang.llvm.org/docs/RealtimeSanitizer.html) build
-checks the DSP entrypoint and both PipeWire process callbacks, including calls
-made underneath them.
+checks the DSP entrypoint and platform audio callbacks (PipeWire on Linux and
+Core Audio on macOS), including calls made underneath them.
 
 Use a Clang toolchain with `-fsanitize=realtime` support and the matching
 compiler-rt runtime. Linux CI uses Clang 21. Configuration fails if the

@@ -86,6 +86,10 @@ headphones, settings, and what happened if you can.
 
 ## For developers
 
+Experimental standalone macOS support with BlackHole is described in the
+[macOS desktop guide](docs/MACOS.md). It is not part of the submitted Decky
+release or a signed desktop distribution.
+
 See the [developer guide](docs/DEVELOPERS.md) to build, test, and extend the
 plugin.
 

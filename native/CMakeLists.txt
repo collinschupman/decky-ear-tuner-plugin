@@ -128,6 +128,36 @@ if(UNIX)
   catch_discover_tests(test_http_server)
 endif()
 
+if(APPLE)
+  enable_language(OBJCXX)
+  add_library(
+    ear_tuner_macos_audio STATIC
+    ${EAR_TUNER_SOURCE_DIR}/native/platform/macos/audio_callback.cpp
+  )
+  target_link_libraries(
+    ear_tuner_macos_audio PUBLIC ear_tuner_core "-framework CoreAudio"
+  )
+  add_executable(
+    ear_tuner_macos ${EAR_TUNER_SOURCE_DIR}/native/platform/macos/main.mm
+  )
+  set_target_properties(
+    ear_tuner_macos PROPERTIES OBJCXX_STANDARD 17 OBJCXX_STANDARD_REQUIRED YES
+  )
+  target_compile_options(ear_tuner_macos PRIVATE -fobjc-arc)
+  target_link_libraries(
+    ear_tuner_macos PRIVATE ear_tuner_macos_audio ear_tuner_posix_http
+                            Threads::Threads "-framework Foundation"
+  )
+  add_executable(
+    test_coreaudio ${EAR_TUNER_SOURCE_DIR}/native/tests/test_coreaudio.cpp
+  )
+  target_link_libraries(
+    test_coreaudio PRIVATE ear_tuner_macos_audio Catch2::Catch2WithMain
+                           Threads::Threads
+  )
+  catch_discover_tests(test_coreaudio)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   find_package(PkgConfig QUIET)
   if(PkgConfig_FOUND)
