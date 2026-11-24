@@ -22,18 +22,15 @@ class MacOSAudioService:
     def __init__(
         self,
         executable: Path,
-        input_uid: str,
-        output_uid: str,
         log_path: Path,
         logger: logging.Logger,
     ):
         self.executable = executable
-        self.input_uid = input_uid
-        self.output_uid = output_uid
         self.log_path = log_path
         self.logger = logger
         self._process: asyncio.subprocess.Process | None = None
         self._session = ""
+        self._output_uid: str | None = None
         self._lifecycle_lock = asyncio.Lock()
 
     def _read_diagnostics(self) -> dict[str, object]:
@@ -53,17 +50,22 @@ class MacOSAudioService:
         except (OSError, ValueError, http.client.HTTPException) as error:
             self.logger.debug("Native diagnostics unavailable: %s", error)
             return False
-        return (
+        output_uid = value.get("output_uid")
+        ready = (
             self._process is process
             and process.returncode is None
             and value.get("platform") == "coreaudio"
             and value.get("session") == session
             and value.get("pid") == process.pid
             and value.get("audio_ready") is True
+            and isinstance(output_uid, str)
+            and bool(output_uid)
         )
+        self._output_uid = output_uid if ready else None
+        return ready
 
     async def current_output(self) -> str | None:
-        return self.output_uid if await self.output_ready() else None
+        return self._output_uid if await self.output_ready() else None
 
     async def execute(self, command: str) -> bool:
         async with self._lifecycle_lock:
@@ -79,15 +81,12 @@ class MacOSAudioService:
         if not await self._stop():
             return False
         self._session = uuid.uuid4().hex
+        self._output_uid = None
         try:
             with self.log_path.open("ab") as log:
                 launch = asyncio.create_task(
                     asyncio.create_subprocess_exec(
                         str(self.executable),
-                        "--input",
-                        self.input_uid,
-                        "--output",
-                        self.output_uid,
                         "--session",
                         self._session,
                         stdin=subprocess.DEVNULL,
@@ -140,6 +139,7 @@ class MacOSAudioService:
                 self.logger.error("Could not stop Core Audio backend: %s", error)
                 return False
         self._process = None
+        self._output_uid = None
         return True
 
 

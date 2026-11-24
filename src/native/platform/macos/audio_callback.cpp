@@ -42,7 +42,6 @@ OSStatus ProcessCoreAudio(AudioDeviceID, const AudioTimeStamp *, const AudioBuff
                           void *context)
 {
     auto &state = *static_cast<CoreAudioState *>(context);
-    // Never feed processed audio back into BlackHole's output channels.
     if (output) {
         for (uint32_t index = 0; index < output->mNumberBuffers; ++index) {
             const auto &buffer = output->mBuffers[index];
@@ -56,8 +55,8 @@ OSStatus ProcessCoreAudio(AudioDeviceID, const AudioTimeStamp *, const AudioBuff
     }
     const auto leftIn = FindChannel(input, 0);
     const auto rightIn = FindChannel(input, 1);
-    const auto leftOut = FindChannel(output, state.mOutputChannelOffset);
-    const auto rightOut = FindChannel(output, state.mOutputChannelOffset + 1);
+    const auto leftOut = FindChannel(output, 0);
+    const auto rightOut = FindChannel(output, 1);
     const auto frames = leftOut.mFrames;
     if (!leftIn.mSamples || !rightIn.mSamples || !leftOut.mSamples || !rightOut.mSamples ||
         !frames || frames > CoreAudioState::kMaximumFrames || rightOut.mFrames != frames ||

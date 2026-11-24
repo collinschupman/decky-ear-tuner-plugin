@@ -149,6 +149,51 @@ class DesktopServerTests(unittest.TestCase):
         self.assertFalse(self.thread.is_alive())
         self.assertTrue(self.plugin.stopped)
 
+    def test_audio_control_is_only_available_for_supported_plugins(self):
+        self._start_server()
+        self.assertEqual(self._request("GET", "/api/audio-service")[0], 404)
+        self.assertEqual(self._request("POST", "/api/audio-service", "{}")[0], 404)
+
+    def test_audio_control_validates_commands_and_reports_failures(self):
+        commands = []
+
+        async def set_audio_service(running):
+            commands.append(running)
+            return running
+
+        self.plugin.set_audio_service = set_audio_service
+        self._start_server()
+        status, body, _ = self._request("GET", "/api/audio-service")
+        self.assertEqual((status, json.loads(body)), (200, {"running": False}))
+        for value in ("{}", '{"running": 1}', '{"running": false, "extra": 1}'):
+            self.assertEqual(
+                self._request(
+                    "POST",
+                    "/api/audio-service",
+                    value,
+                    {"Content-Type": "application/json"},
+                )[0],
+                400,
+            )
+        self.assertEqual(
+            self._request("POST", "/api/audio-service", '{"running": false}')[0], 400
+        )
+        status, body, _ = self._request(
+            "POST",
+            "/api/audio-service",
+            '{"running": false}',
+            {"Content-Type": "application/json"},
+        )
+        self.assertEqual((status, json.loads(body)), (503, {"applied": False}))
+        status, body, _ = self._request(
+            "POST",
+            "/api/audio-service",
+            '{"running": true}',
+            {"Content-Type": "application/json"},
+        )
+        self.assertEqual((status, json.loads(body)), (200, {"applied": True}))
+        self.assertEqual(commands, [False, True])
+
     def test_all_plugin_calls_share_one_event_loop(self):
         self._start_server()
         self._request("GET", "/api/ear-tuner")

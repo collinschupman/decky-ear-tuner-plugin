@@ -68,12 +68,15 @@ class MacOSDesktopPlugin:
     async def get_service_status(self) -> dict[str, bool]:
         return await self._coordinator.get_service_status()
 
+    async def set_audio_service(self, running: bool) -> bool:
+        if running:
+            return await self._coordinator.start()
+        return await self._coordinator.stop()
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--list-devices", action="store_true")
-    parser.add_argument("--input", default="BlackHole2ch_UID", help="BlackHole 2ch UID")
-    parser.add_argument("--output", help="Physical headphone output UID (not its name)")
     parser.add_argument("--port", type=int, default=5173, help="Local web UI port")
     arguments = parser.parse_args()
     if sys.platform != "darwin":
@@ -88,8 +91,6 @@ def main() -> int:
         return subprocess.run(
             [str(executable), "--list-devices"], check=False
         ).returncode
-    if not arguments.output:
-        parser.error("--output is required; use --list-devices to find the UID")
     if not (root / "dist-web" / "index.html").is_file():
         parser.error("Build the desktop UI first: pnpm run build:web")
 
@@ -114,16 +115,9 @@ def main() -> int:
             return 1
         settings = SettingsManager("settings", str(data))
         settings.read()
-        routing = MacOSAudioService(
-            executable,
-            arguments.input,
-            arguments.output,
-            logs / "native.log",
-            logger,
-        )
+        routing = MacOSAudioService(executable, logs / "native.log", logger)
         logger.info(
-            "Route macOS output to BlackHole 2ch; select physical headphones again on exit. "
-            "Ear Tuner does not change system routing."
+            "Capturing the current macOS default output without changing routing."
         )
         previous_handler = signal.signal(signal.SIGTERM, signal.default_int_handler)
         try:

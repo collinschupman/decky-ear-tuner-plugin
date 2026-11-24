@@ -78,6 +78,20 @@ class EarTunerCoordinator:
             self._stopped = True
             return await self._audio_routing.execute("stop")
 
+    async def start(self) -> bool:
+        async with self._lifecycle_lock:
+            self._stopped = True
+            settings = await self.get_ear_tuner()
+            if await self._audio_routing.execute(
+                "start"
+            ) and await self._backend.apply_ear_tuner(settings):
+                self._current_output = await self._audio_routing.current_output()
+                self._stopped = False
+                return True
+            self._logger.warning("Could not start audio service with saved settings")
+            await self._audio_routing.execute("stop")
+            return False
+
     async def uninstall(self) -> bool:
         async with self._lifecycle_lock:
             self._stopped = True

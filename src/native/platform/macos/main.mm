@@ -1,6 +1,8 @@
 #include "platform/macos/audio_callback.h"
 #include "platform/posix/http/http_server.h"
 
+#import <CoreAudio/AudioHardwareTapping.h>
+#import <CoreAudio/CATapDescription.h>
 #import <Foundation/Foundation.h>
 
 #include <chrono>
@@ -88,6 +90,45 @@ AudioDeviceID ResolveDevice(NSString *uid)
     throw std::runtime_error("Audio device not found: " + std::string(uid.UTF8String));
 }
 
+NSString *DefaultOutputUid()
+{
+    const auto output = Property<AudioDeviceID>(kAudioObjectSystemObject,
+                                                kAudioHardwarePropertyDefaultOutputDevice);
+    if (output == kAudioObjectUnknown) {
+        throw std::runtime_error("macOS has no default audio output device.");
+    }
+    return StringProperty(output, kAudioDevicePropertyDeviceUID);
+}
+
+UInt32 StereoOutputStreamIndex(AudioDeviceID output)
+{
+    const auto streams = PropertyList<AudioStreamID>(output, kAudioDevicePropertyStreams,
+                                                     kAudioDevicePropertyScopeOutput);
+    for (size_t index = 0; index < streams.size(); ++index) {
+        const auto format = Property<AudioStreamBasicDescription>(
+            streams[index], kAudioStreamPropertyVirtualFormat);
+        if (format.mChannelsPerFrame >= 2) {
+            return static_cast<UInt32>(index);
+        }
+    }
+    throw std::runtime_error("The current default output has no stereo audio stream.");
+}
+
+AudioObjectID CurrentProcessObject()
+{
+    const pid_t processId = getpid();
+    auto address = Address(kAudioHardwarePropertyTranslatePIDToProcessObject);
+    AudioObjectID process = kAudioObjectUnknown;
+    UInt32 size = sizeof(process);
+    Check(AudioObjectGetPropertyData(kAudioObjectSystemObject, &address, sizeof(processId),
+                                     &processId, &size, &process),
+          "Find current Core Audio process");
+    if (process == kAudioObjectUnknown) {
+        throw std::runtime_error("Could not exclude Ear Tuner from its system-audio tap.");
+    }
+    return process;
+}
+
 void PrintDevices()
 {
     NSMutableArray *devices = [NSMutableArray array];
@@ -112,12 +153,10 @@ void PrintDevices()
     std::cout << "\n";
 }
 
-void ValidateDevices(AudioDeviceID input, AudioDeviceID output)
+void ValidateOutput(AudioDeviceID output)
 {
-    if (input == output || Channels(input, kAudioObjectPropertyScopeInput) != 2 ||
-        Channels(input, kAudioObjectPropertyScopeOutput) != 2 ||
-        Channels(output, kAudioObjectPropertyScopeOutput) < 2) {
-        throw std::runtime_error("Select BlackHole 2ch as input and a different stereo output.");
+    if (Channels(output, kAudioObjectPropertyScopeOutput) < 2) {
+        throw std::runtime_error("The current default output must provide stereo audio.");
     }
     const auto transport = Property<UInt32>(output, kAudioDevicePropertyTransportType);
     if (transport == kAudioDeviceTransportTypeVirtual ||
@@ -125,21 +164,18 @@ void ValidateDevices(AudioDeviceID input, AudioDeviceID output)
         throw std::runtime_error(
             "Output must be physical headphones, not a virtual/aggregate device.");
     }
-    if (!Property<UInt32>(input, kAudioDevicePropertyDeviceIsAlive) ||
-        !Property<UInt32>(output, kAudioDevicePropertyDeviceIsAlive)) {
-        throw std::runtime_error("Selected audio device is disconnected.");
+    if (!Property<UInt32>(output, kAudioDevicePropertyDeviceIsAlive)) {
+        throw std::runtime_error("The current default output is disconnected.");
     }
     const auto rate = Property<Float64>(output, kAudioDevicePropertyNominalSampleRate);
-    if (rate < 8000 || rate > 192000 ||
-        rate != Property<Float64>(input, kAudioDevicePropertyNominalSampleRate)) {
-        throw std::runtime_error(
-            "Set BlackHole and the physical output to the same sample rate (e.g. 48000 Hz) "
-            "in Audio MIDI Setup.");
+    if (rate < 8000 || rate > 192000) {
+        throw std::runtime_error("The current default output has an unsupported sample rate.");
     }
 }
 
 struct Runtime {
     AudioDeviceID mAggregate = kAudioObjectUnknown;
+    AudioObjectID mTap = kAudioObjectUnknown;
     AudioDeviceIOProcID mProc = nullptr;
     bool mStarted = false;
     std::unique_ptr<CoreAudioState> mAudio = std::make_unique<CoreAudioState>();
@@ -154,6 +190,9 @@ struct Runtime {
         }
         if (mAggregate != kAudioObjectUnknown) {
             Report(AudioHardwareDestroyAggregateDevice(mAggregate), "Remove private aggregate");
+        }
+        if (mTap != kAudioObjectUnknown) {
+            Report(AudioHardwareDestroyProcessTap(mTap), "Remove private process tap");
         }
     }
 
@@ -187,7 +226,7 @@ void ConfigureStreams(Runtime &runtime, AudioObjectPropertyScope scope, UInt32 f
         offset += format.mChannelsPerFrame;
         if (active && scope == kAudioObjectPropertyScopeInput &&
             offset > firstChannel + channelCount) {
-            throw std::runtime_error("Aggregate input stream does not isolate BlackHole stereo.");
+            throw std::runtime_error("Aggregate input stream does not isolate tap stereo.");
         }
         if (active &&
             (format.mFormatID != kAudioFormatLinearPCM ||
@@ -208,12 +247,28 @@ void ConfigureStreams(Runtime &runtime, AudioObjectPropertyScope scope, UInt32 f
           "Select aggregate streams");
 }
 
-void StartAudio(Runtime &runtime, NSString *inputUid, NSString *outputUid)
+void StartAudio(Runtime &runtime, NSString *outputUid)
 {
-    const auto input = ResolveDevice(inputUid);
     const auto output = ResolveDevice(outputUid);
-    ValidateDevices(input, output);
+    ValidateOutput(output);
     runtime.mAudio->mSampleRate = Property<Float64>(output, kAudioDevicePropertyNominalSampleRate);
+    const auto streamIndex = StereoOutputStreamIndex(output);
+    if (@available(macOS 14.2, *)) {
+        auto *tapDescription =
+            [[CATapDescription alloc] initExcludingProcesses:@[ @(CurrentProcessObject()) ]
+                                                andDeviceUID:outputUid
+                                                  withStream:streamIndex];
+        tapDescription.name = @"Ear Tuner output capture";
+        tapDescription.UUID = NSUUID.UUID;
+        tapDescription.privateTap = YES;
+        tapDescription.mixdown = YES;
+        tapDescription.muteBehavior = CATapMuted;
+        Check(AudioHardwareCreateProcessTap(tapDescription, &runtime.mTap),
+              "Create output process tap");
+    } else {
+        throw std::runtime_error("System audio capture requires macOS 14.2 or later.");
+    }
+    const auto tapUid = StringProperty(runtime.mTap, kAudioTapPropertyUID);
     NSDictionary *description = @{
         @kAudioAggregateDeviceNameKey : @"Ear Tuner (private)",
         @kAudioAggregateDeviceUIDKey :
@@ -222,9 +277,11 @@ void StartAudio(Runtime &runtime, NSString *inputUid, NSString *outputUid)
         @kAudioAggregateDeviceIsStackedKey : @1,
         @kAudioAggregateDeviceMainSubDeviceKey : outputUid,
         @kAudioAggregateDeviceSubDeviceListKey : @[
-            @{@kAudioSubDeviceUIDKey : inputUid,
-              @kAudioSubDeviceDriftCompensationKey : @1},
             @{@kAudioSubDeviceUIDKey : outputUid}
+        ],
+        @kAudioAggregateDeviceTapListKey : @[
+            @{@kAudioSubTapUIDKey : tapUid,
+              @kAudioSubTapDriftCompensationKey : @1}
         ]
     };
     Check(AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef)description,
@@ -238,16 +295,14 @@ void StartAudio(Runtime &runtime, NSString *inputUid, NSString *outputUid)
                                     &runtime.mProc),
           "Create audio callback");
     ConfigureStreams(runtime, kAudioObjectPropertyScopeInput, 0, 2);
-    ConfigureStreams(runtime, kAudioObjectPropertyScopeOutput, 2, 2);
+    ConfigureStreams(runtime, kAudioObjectPropertyScopeOutput, 0, 2);
     Check(AudioDeviceStart(runtime.mAggregate, runtime.mProc),
-          "Start audio (allow audio input access for the launching app if prompted)");
+          "Start audio (approve system-audio capture if prompted)");
     runtime.mStarted = true;
 }
 
 int Run(int argc, char **argv)
 {
-    NSString *inputUid = @"BlackHole2ch_UID";
-    NSString *outputUid = nil;
     std::string session;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
@@ -255,33 +310,23 @@ int Run(int argc, char **argv)
             PrintDevices();
             return 0;
         }
-        if ((argument == "--input" || argument == "--output" || argument == "--session") &&
-            index + 1 < argc) {
+        if (argument == "--session" && index + 1 < argc) {
             NSString *value = [NSString stringWithUTF8String:argv[++index]];
             if (!value || !value.length) {
-                throw std::runtime_error("Device UIDs and session must not be empty.");
+                throw std::runtime_error("Session must not be empty.");
             }
-            if (argument == "--input") {
-                inputUid = value;
-            } else if (argument == "--output") {
-                outputUid = value;
-            } else {
-                session = value.UTF8String;
-            }
+            session = value.UTF8String;
         } else {
             throw std::runtime_error("Usage: ear_tuner_macos --list-devices | "
-                                     "--output DEVICE_UID [--input BlackHole2ch_UID] --session ID");
+                                     "--session ID");
         }
     }
-    if (!outputUid || session.empty()) {
-        throw std::runtime_error(
-            "An explicit physical --output UID and --session ID are required.");
+    if (session.empty()) {
+        throw std::runtime_error("A --session ID is required.");
     }
-    if (![inputUid hasPrefix:@"BlackHole"]) {
-        throw std::runtime_error("This backend requires a BlackHole 2ch input device.");
-    }
+    NSString *outputUid = DefaultOutputUid();
     Runtime runtime;
-    StartAudio(runtime, inputUid, outputUid);
+    StartAudio(runtime, outputUid);
     std::signal(SIGINT, RequestStop);
     std::signal(SIGTERM, RequestStop);
     auto &audio = *runtime.mAudio;
@@ -292,6 +337,7 @@ int Run(int argc, char **argv)
                 @"platform" : @"coreaudio",
                 @"session" : [NSString stringWithUTF8String:session.c_str()],
                 @"pid" : @(getpid()),
+                @"output_uid" : outputUid,
                 @"sample_rate" : @(audio.mSampleRate),
                 @"callbacks" : @(audio.mCallbacks.load(std::memory_order_relaxed)),
                 @"audio_ready" : @(audio.mCallbacks.load(std::memory_order_relaxed) > 0 &&
@@ -325,9 +371,12 @@ int Run(int argc, char **argv)
                     "device connection, sample rates, and that no other Ear Tuner is running.");
             }
             @autoreleasepool {
-                const auto input = ResolveDevice(inputUid);
+                if (![DefaultOutputUid() isEqualToString:outputUid]) {
+                    throw std::runtime_error(
+                        "The default output changed; restarting to follow the current endpoint.");
+                }
                 const auto output = ResolveDevice(outputUid);
-                ValidateDevices(input, output);
+                ValidateOutput(output);
                 if (Property<Float64>(output, kAudioDevicePropertyNominalSampleRate) !=
                     audio.mSampleRate) {
                     throw std::runtime_error("Audio sample rate changed; restarting is required.");

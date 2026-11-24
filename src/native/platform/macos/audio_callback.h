@@ -15,7 +15,6 @@ struct CoreAudioState {
     EarTunerControlState mControl;
     EarTunerProcessor mProcessor;
     double mSampleRate = 48000;
-    uint32_t mOutputChannelOffset = 2;
     std::array<float, kMaximumFrames> mLeft{};
     std::array<float, kMaximumFrames> mRight{};
     std::atomic<uint32_t> mCallbacks{0};

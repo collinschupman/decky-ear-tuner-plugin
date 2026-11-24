@@ -3,7 +3,7 @@ import json
 import os
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from typing import Callable, Protocol
+from typing import Callable, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
 from ear_tuner.settings import EarTunerSettings
@@ -19,6 +19,11 @@ class DesktopPlugin(Protocol):
     async def set_ear_tuner(self, value: dict[str, object]) -> bool: ...
 
     async def get_service_status(self) -> dict[str, bool]: ...
+
+
+@runtime_checkable
+class DesktopAudioControl(Protocol):
+    async def set_audio_service(self, running: bool) -> bool: ...
 
 
 def run_desktop_server(
@@ -91,23 +96,45 @@ def _serve_desktop_server(
                     ).result(),
                 )
                 return
+            if request_path == "/api/audio-service" and isinstance(
+                plugin, DesktopAudioControl
+            ):
+                status = asyncio.run_coroutine_threadsafe(
+                    plugin.get_service_status(), loop
+                ).result()
+                self.send_json(200, {"running": status["backend_running"]})
+                return
             super().do_GET()
 
         def do_POST(self) -> None:
             request_path = urlparse(self.path).path
-            if request_path != "/api/ear-tuner":
+            audio_control = request_path == "/api/audio-service" and isinstance(
+                plugin, DesktopAudioControl
+            )
+            if request_path != "/api/ear-tuner" and not audio_control:
                 self.send_error(404)
                 return
             try:
+                if (
+                    audio_control
+                    and self.headers.get_content_type() != "application/json"
+                ):
+                    raise ValueError("audio service requires application/json")
                 size = int(self.headers.get("Content-Length", "0"))
                 if size <= 0 or size > 16 * 1024:
                     raise ValueError("invalid request size")
                 value = json.loads(self.rfile.read(size))
                 if not isinstance(value, dict):
                     raise ValueError("settings must be an object")
-                applied = asyncio.run_coroutine_threadsafe(
-                    plugin.set_ear_tuner(value), loop
-                ).result()
+                if audio_control and isinstance(plugin, DesktopAudioControl):
+                    if set(value) != {"running"} or not isinstance(
+                        value["running"], bool
+                    ):
+                        raise ValueError("running must be a boolean")
+                    operation = plugin.set_audio_service(value["running"])
+                else:
+                    operation = plugin.set_ear_tuner(value)
+                applied = asyncio.run_coroutine_threadsafe(operation, loop).result()
                 self.send_json(200 if applied else 503, {"applied": applied})
             except TimeoutError:
                 self.send_json(408, {"error": "request body timed out"})

@@ -33,8 +33,8 @@ processes with Ctrl+C.
 settings and may start or restart the audio service. Don't run it alongside the
 installed plugin or another Ear Tuner instance. On macOS, you can inspect the UI
 through the preview command, but that command still uses the Linux service. For
-experimental macOS audio processing with BlackHole and the shared browser UI,
-use the separate [macOS desktop host](MACOS.md).
+experimental macOS audio processing with Core Audio process taps and the shared
+browser UI, use the separate [macOS desktop host](MACOS.md).
 
 ## Project map
 

@@ -27,7 +27,7 @@
   "homepage": "https://github.com/collinschupman/decky-ear-tuner-plugin#readme",
   "scripts": {
     "build:macos": "cmake -S native -B native/build-current -DCMAKE_BUILD_TYPE=Release && cmake --build native/build-current --target ear_tuner_macos && pnpm run typecheck && pnpm run build:web",
-    "start:macos": "PYTHONPATH=src python3 -m ear_tuner.macos_desktop",
+    "start:macos": "cd src && PYTHONPATH=. python3 -m ear_tuner.macos_desktop",
     "dev": "concurrently --kill-others --names api,ui \"pnpm dev:api\" \"pnpm dev:ui\"",
     "dev:api": "python -c \"import main; main.run_desktop_server(port=8000)\"",
     "dev:ui": "node scripts/dev_ui.mjs",

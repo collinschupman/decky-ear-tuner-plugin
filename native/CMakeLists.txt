@@ -141,7 +141,10 @@ if(APPLE)
     ear_tuner_macos ${EAR_TUNER_SOURCE_DIR}/native/platform/macos/main.mm
   )
   set_target_properties(
-    ear_tuner_macos PROPERTIES OBJCXX_STANDARD 17 OBJCXX_STANDARD_REQUIRED YES
+    ear_tuner_macos
+    PROPERTIES OBJCXX_STANDARD 17
+               OBJCXX_STANDARD_REQUIRED YES
+               MACOSX_DEPLOYMENT_TARGET 14.2
   )
   target_compile_options(ear_tuner_macos PRIVATE -fobjc-arc)
   target_link_libraries(

@@ -25,28 +25,23 @@ struct Buffers {
 
 }  // namespace
 
-TEST_CASE("Core Audio sends stereo DSP output only to physical channels", "[coreaudio]")
+TEST_CASE("Core Audio sends stereo DSP output to the selected endpoint", "[coreaudio]")
 {
     auto state = std::make_unique<CoreAudioState>();
     state->mControl.mFocusEnabled.store(false);
     std::array<float, 4> input{0.1f, 0.2f, -0.3f, 0.4f};
-    std::array<float, 4> loopback{1, 1, 1, 1};
-    std::array<float, 4> physical{};
     Buffers<1> source;
     source.mBuffers[0] = {2, sizeof(input), input.data()};
-    Buffers<2> destination;
-    destination.mBuffers[0] = {2, sizeof(loopback), loopback.data()};
-    destination.mBuffers[1] = {2, sizeof(physical), physical.data()};
+    std::array<float, 4> output{};
+    Buffers<1> destination;
+    destination.mBuffers[0] = {2, sizeof(output), output.data()};
     ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(), nullptr, state.get());
     CHECK_FALSE(state->mBufferError.load());
     CHECK(state->mCallbacks.load() == 1);
-    for (size_t index = 0; index < input.size(); ++index) {
-        CHECK(physical[index] == Catch::Approx(input[index]));
-        CHECK(loopback[index] == 0);
-    }
+    CHECK(output == input);
 }
 
-TEST_CASE("Core Audio handles planar buffers and disabled loopback streams", "[coreaudio]")
+TEST_CASE("Core Audio handles planar input and output buffers", "[coreaudio]")
 {
     auto state = std::make_unique<CoreAudioState>();
     state->mControl.mFocusEnabled.store(false);
@@ -57,10 +52,9 @@ TEST_CASE("Core Audio handles planar buffers and disabled loopback streams", "[c
     Buffers<2> source;
     source.mBuffers[0] = {1, sizeof(left), left.data()};
     source.mBuffers[1] = {1, sizeof(right), right.data()};
-    Buffers<3> destination;
-    destination.mBuffers[0] = {2, sizeof(left) * 2, nullptr};
-    destination.mBuffers[1] = {1, sizeof(outputLeft), outputLeft.data()};
-    destination.mBuffers[2] = {1, sizeof(outputRight), outputRight.data()};
+    Buffers<2> destination;
+    destination.mBuffers[0] = {1, sizeof(outputLeft), outputLeft.data()};
+    destination.mBuffers[1] = {1, sizeof(outputRight), outputRight.data()};
     ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(), nullptr, state.get());
     CHECK_FALSE(state->mBufferError.load());
     CHECK(outputLeft == left);
@@ -80,10 +74,9 @@ TEST_CASE("Core Audio applies independent ear controls through the shared DSP", 
     Buffers<2> source;
     source.mBuffers[0] = {1, sizeof(input), input.data()};
     source.mBuffers[1] = {1, sizeof(input), input.data()};
-    Buffers<3> destination;
-    destination.mBuffers[0] = {2, sizeof(input) * 2, nullptr};
-    destination.mBuffers[1] = {1, sizeof(left), left.data()};
-    destination.mBuffers[2] = {1, sizeof(right), right.data()};
+    Buffers<2> destination;
+    destination.mBuffers[0] = {1, sizeof(left), left.data()};
+    destination.mBuffers[1] = {1, sizeof(right), right.data()};
     for (int block = 0; block < 10; ++block) {
         ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(), nullptr,
                          state.get());
@@ -98,8 +91,7 @@ TEST_CASE("Core Audio silences invalid or oversized buffers without processing",
     auto state = std::make_unique<CoreAudioState>();
     std::vector<float> physical(4, 1);
     Buffers<1> source;
-    Buffers<2> destination;
-    destination.mBuffers[0] = {2, sizeof(float) * 4, nullptr};
+    Buffers<1> destination;
     SECTION("missing input") {}
     SECTION("oversized input and output")
     {
@@ -111,7 +103,7 @@ TEST_CASE("Core Audio silences invalid or oversized buffers without processing",
     {
         source.mBuffers[0] = {2, sizeof(float) * 2, physical.data()};
     }
-    destination.mBuffers[1] = {2, static_cast<UInt32>(physical.size() * sizeof(float)),
+    destination.mBuffers[0] = {2, static_cast<UInt32>(physical.size() * sizeof(float)),
                                physical.data()};
     ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(), nullptr, state.get());
     CHECK(state->mBufferError.load());
@@ -126,11 +118,10 @@ TEST_CASE("Core Audio rejects partial PCM frames", "[coreaudio][validation]")
     std::array<float, 5> output{1, 1, 1, 1, 1};
     Buffers<1> source;
     source.mBuffers[0] = {2, sizeof(float) * 4, input.data()};
-    Buffers<2> destination;
-    destination.mBuffers[0] = {2, sizeof(float) * 4, nullptr};
-    destination.mBuffers[1] = {2, sizeof(float) * 4, output.data()};
+    Buffers<1> destination;
+    destination.mBuffers[0] = {2, sizeof(float) * 4, output.data()};
     SECTION("input has a trailing byte") { ++source.mBuffers[0].mDataByteSize; }
-    SECTION("output has a trailing byte") { ++destination.mBuffers[1].mDataByteSize; }
+    SECTION("output has a trailing byte") { ++destination.mBuffers[0].mDataByteSize; }
     ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(), nullptr, state.get());
     CHECK(state->mBufferError.load());
     CHECK(state->mCallbacks.load() == 0);
@@ -146,9 +137,8 @@ TEST_CASE("Core Audio latches fatal buffer errors until restart", "[coreaudio][v
     std::array<float, 4> output{1, 1, 1, 1};
     Buffers<1> source;
     source.mBuffers[0] = {2, sizeof(input), input.data()};
-    Buffers<2> destination;
-    destination.mBuffers[0] = {2, sizeof(output), nullptr};
-    destination.mBuffers[1] = {2, sizeof(output), output.data()};
+    Buffers<1> destination;
+    destination.mBuffers[0] = {2, sizeof(output), output.data()};
     ProcessCoreAudio(0, nullptr, nullptr, nullptr, destination.List(), nullptr, state.get());
     REQUIRE(state->mBufferError.load());
     ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(), nullptr, state.get());
@@ -164,9 +154,8 @@ TEST_CASE("Core Audio rejects malformed channel counts without arithmetic overfl
     std::array<float, 4> output{1, 1, 1, 1};
     Buffers<1> source;
     source.mBuffers[0] = {1u << 30, 0, input.data()};
-    Buffers<2> destination;
-    destination.mBuffers[0] = {2, sizeof(output), nullptr};
-    destination.mBuffers[1] = {2, sizeof(output), output.data()};
+    Buffers<1> destination;
+    destination.mBuffers[0] = {2, sizeof(output), output.data()};
     ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(), nullptr, state.get());
     CHECK(state->mBufferError.load());
     CHECK(state->mCallbacks.load() == 0);
@@ -184,10 +173,9 @@ TEST_CASE("Core Audio remains stereo-isolated during concurrent control updates"
     Buffers<2> source;
     source.mBuffers[0] = {1, sizeof(left), left.data()};
     source.mBuffers[1] = {1, sizeof(right), right.data()};
-    Buffers<3> destination;
-    destination.mBuffers[0] = {2, sizeof(left) * 2, nullptr};
-    destination.mBuffers[1] = {1, sizeof(outputLeft), outputLeft.data()};
-    destination.mBuffers[2] = {1, sizeof(outputRight), outputRight.data()};
+    Buffers<2> destination;
+    destination.mBuffers[0] = {1, sizeof(outputLeft), outputLeft.data()};
+    destination.mBuffers[1] = {1, sizeof(outputRight), outputRight.data()};
     std::atomic<bool> stop{false};
     std::thread writer([&] {
         uint32_t iteration = 0;
@@ -221,81 +209,62 @@ TEST_CASE("Core Audio matches the portable processor across layouts rates and bl
     std::uniform_real_distribution<float> sample(-0.9f, 0.9f);
     for (bool planarInput : {false, true}) {
         for (bool planarOutput : {false, true}) {
-            for (bool loopbackActive : {false, true}) {
-                for (double rate : {44100.0, 48000.0, 96000.0, 192000.0}) {
-                    CAPTURE(planarInput, planarOutput, loopbackActive, rate);
-                    auto state = std::make_unique<CoreAudioState>();
-                    state->mSampleRate = rate;
-                    EarTunerProcessor referenceProcessor;
-                    for (uint32_t frames :
-                         {1u, 2u, 7u, 128u, 255u, 256u, 1024u, 4096u, 16383u, 16384u}) {
-                        CAPTURE(frames);
-                        state->mControl.mFocusEnabled.store(random() % 2);
-                        state->mControl.mFocusBypassed.store(random() % 2);
-                        state->mControl.mLeftFocusMode.store(random() % 5);
-                        state->mControl.mRightFocusMode.store(random() % 5);
-                        state->mControl.mLeftFocusLevel.store(1 + random() % 3);
-                        state->mControl.mRightFocusLevel.store(1 + random() % 3);
-                        std::vector<float> left(frames), right(frames), interleaved(frames * 2);
-                        for (uint32_t frame = 0; frame < frames; ++frame) {
-                            left[frame] = interleaved[frame * 2] = sample(random);
-                            right[frame] = interleaved[frame * 2 + 1] = sample(random);
-                        }
+            for (double rate : {44100.0, 48000.0, 96000.0, 192000.0}) {
+                CAPTURE(planarInput, planarOutput, rate);
+                auto state = std::make_unique<CoreAudioState>();
+                state->mSampleRate = rate;
+                EarTunerProcessor referenceProcessor;
+                for (uint32_t frames :
+                     {1u, 2u, 7u, 128u, 255u, 256u, 1024u, 4096u, 16383u, 16384u}) {
+                    CAPTURE(frames);
+                    state->mControl.mFocusEnabled.store(random() % 2);
+                    state->mControl.mFocusBypassed.store(random() % 2);
+                    state->mControl.mLeftFocusMode.store(random() % 5);
+                    state->mControl.mRightFocusMode.store(random() % 5);
+                    state->mControl.mLeftFocusLevel.store(1 + random() % 3);
+                    state->mControl.mRightFocusLevel.store(1 + random() % 3);
+                    std::vector<float> left(frames), right(frames), interleaved(frames * 2);
+                    for (uint32_t frame = 0; frame < frames; ++frame) {
+                        left[frame] = interleaved[frame * 2] = sample(random);
+                        right[frame] = interleaved[frame * 2 + 1] = sample(random);
+                    }
 
-                        const auto originalInput = interleaved;
-                        std::vector<float> expectedLeft(frames), expectedRight(frames);
-                        constexpr uint32_t sampleBytes = sizeof(float);
-                        ProcessAudioBlock(state->mControl, referenceProcessor, left.data(),
-                                          right.data(), expectedLeft.data(), expectedRight.data(),
-                                          frames, static_cast<float>(rate));
-                        Buffers<3> source;
-                        if (planarInput) {
-                            source.mBuffers[0] = {1, frames * sampleBytes, left.data()};
-                            source.mBuffers[1] = {1, frames * sampleBytes, right.data()};
-                            source.mBuffers[2] = {1, frames * sampleBytes, nullptr};
-                        } else {
-                            source.mBuffers[0] = {2, frames * 2 * sampleBytes, interleaved.data()};
-                            source.mBuffers[1] = {1, frames * sampleBytes, nullptr};
-                            source.mNumberBuffers = 2;
-                        }
-                        std::vector<float> loopback(frames * 2 + 2, 123);
-                        const uint32_t physicalChannels = planarOutput ? 2 : 6;
-                        std::vector<float> physical(frames * physicalChannels + 2, 123);
-                        Buffers<3> destination;
+                    const auto originalInput = interleaved;
+                    std::vector<float> expectedLeft(frames), expectedRight(frames);
+                    constexpr uint32_t sampleBytes = sizeof(float);
+                    ProcessAudioBlock(state->mControl, referenceProcessor, left.data(),
+                                      right.data(), expectedLeft.data(), expectedRight.data(),
+                                      frames, static_cast<float>(rate));
+                    Buffers<2> source;
+                    if (planarInput) {
+                        source.mBuffers[0] = {1, frames * sampleBytes, left.data()};
+                        source.mBuffers[1] = {1, frames * sampleBytes, right.data()};
+                    } else {
+                        source.mBuffers[0] = {2, frames * 2 * sampleBytes, interleaved.data()};
+                        source.mNumberBuffers = 1;
+                    }
+                    std::vector<float> physical(frames * 2 + 2, 123);
+                    Buffers<2> destination;
+                    if (planarOutput) {
+                        destination.mBuffers[0] = {1, frames * sampleBytes, physical.data() + 1};
+                        destination.mBuffers[1] = {1, frames * sampleBytes,
+                                                   physical.data() + 1 + frames};
+                    } else {
                         destination.mBuffers[0] = {2, frames * 2 * sampleBytes,
-                                                   loopbackActive ? loopback.data() + 1 : nullptr};
-                        if (planarOutput) {
-                            destination.mBuffers[1] = {1, frames * sampleBytes,
-                                                       physical.data() + 1};
-                            destination.mBuffers[2] = {1, frames * sampleBytes,
-                                                       physical.data() + 1 + frames};
-                        } else {
-                            destination.mBuffers[1] = {physicalChannels,
-                                                       frames * physicalChannels * sampleBytes,
-                                                       physical.data() + 1};
-                            destination.mNumberBuffers = 2;
-                        }
-                        ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(),
-                                         nullptr, state.get());
-                        REQUIRE_FALSE(state->mBufferError.load());
-                        REQUIRE(interleaved == originalInput);
-                        REQUIRE(physical.front() == 123);
-                        REQUIRE(physical.back() == 123);
-                        REQUIRE(loopback.front() == 123);
-                        REQUIRE(loopback.back() == 123);
-                        for (uint32_t frame = 0; frame < frames; ++frame) {
-                            REQUIRE(
-                                physical[1 + (planarOutput ? frame : frame * physicalChannels)] ==
+                                                   physical.data() + 1};
+                        destination.mNumberBuffers = 1;
+                    }
+                    ProcessCoreAudio(0, nullptr, source.List(), nullptr, destination.List(),
+                                     nullptr, state.get());
+                    REQUIRE_FALSE(state->mBufferError.load());
+                    REQUIRE(interleaved == originalInput);
+                    REQUIRE(physical.front() == 123);
+                    REQUIRE(physical.back() == 123);
+                    for (uint32_t frame = 0; frame < frames; ++frame) {
+                        REQUIRE(physical[1 + (planarOutput ? frame : frame * 2)] ==
                                 expectedLeft[frame]);
-                            REQUIRE(physical[1 + (planarOutput ? frames + frame
-                                                               : frame * physicalChannels + 1)] ==
-                                    expectedRight[frame]);
-                            for (uint32_t channel = 2; channel < physicalChannels; ++channel) {
-                                REQUIRE(physical[1 + frame * physicalChannels + channel] == 0);
-                            }
-                            REQUIRE(loopback[1 + frame * 2] == (loopbackActive ? 0 : 123));
-                            REQUIRE(loopback[2 + frame * 2] == (loopbackActive ? 0 : 123));
-                        }
+                        REQUIRE(physical[1 + (planarOutput ? frames + frame : frame * 2 + 1)] ==
+                                expectedRight[frame]);
                     }
                 }
             }

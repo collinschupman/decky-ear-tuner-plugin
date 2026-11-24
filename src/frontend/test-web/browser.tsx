@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { App, DeckyInfoPage } from '../decky/app'
+import { AudioServiceControl } from './audio_service_control'
 import './preview.css'
 import { DeckyPreviewShell, previewDeckyUi } from './preview_ui'
 
@@ -19,7 +20,9 @@ function BrowserPreview() {
           onBack={() => setShowInfo(false)}
         />
       ) : (
-        <App deckyUi={previewDeckyUi} onOpenInfo={() => setShowInfo(true)} />
+        <AudioServiceControl>
+          <App deckyUi={previewDeckyUi} onOpenInfo={() => setShowInfo(true)} />
+        </AudioServiceControl>
       )}
     </DeckyPreviewShell>
   )

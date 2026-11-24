@@ -103,6 +103,31 @@ class EarTunerCoordinatorTests(unittest.IsolatedAsyncioTestCase):
             [unittest.mock.call("stop"), unittest.mock.call("uninstall")]
         )
 
+    async def test_manual_stop_prevents_recovery_and_start_restores_saved_settings(
+        self,
+    ):
+        value = focus_settings(enabled=True, left_mode=4)
+        self.settings.getSetting.return_value = value
+        self.assertTrue(await self.audio.stop())
+        await self.audio.health_check()
+        self.service.execute.assert_awaited_once_with("stop")
+        self.assertTrue(await self.audio.start())
+        self.backend.apply_ear_tuner.assert_awaited_once_with(value)
+        self.settings.setSetting.assert_not_called()
+        await self.audio.health_check()
+        self.backend.is_healthy.assert_awaited_once()
+
+    async def test_failed_manual_start_preserves_settings_and_stays_stopped(self):
+        self.settings.getSetting.return_value = focus_settings(enabled=True)
+        self.backend.apply_ear_tuner.return_value = False
+        self.assertFalse(await self.audio.start())
+        self.service.execute.assert_has_awaits(
+            [unittest.mock.call("start"), unittest.mock.call("stop")]
+        )
+        self.settings.setSetting.assert_not_called()
+        await self.audio.health_check()
+        self.backend.is_healthy.assert_not_awaited()
+
     async def test_disabling_persists_without_stopping_and_logs_mode_change(self):
         value = focus_settings(enabled=False, left_mode=1)
 

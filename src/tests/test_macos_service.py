@@ -27,8 +27,6 @@ parser.add_argument("--port-file")
 parser.add_argument("--mode-file")
 parser.add_argument("--record-file")
 parser.add_argument("--session")
-parser.add_argument("--input")
-parser.add_argument("--output")
 parser.add_argument("--ignore-term", action="store_true")
 args = parser.parse_args()
 if args.ignore_term:
@@ -45,6 +43,7 @@ class Handler(BaseHTTPRequestHandler):
                 "platform": "coreaudio",
                 "session": "foreign-session" if mode == "foreign" else args.session,
                 "pid": os.getpid(),
+                "output_uid": "current-default-output",
                 "audio_ready": mode != "not-ready",
             }).encode()
             self.send_response(200)
@@ -85,8 +84,6 @@ class MacOSServiceTests(unittest.IsolatedAsyncioTestCase):
         self.logger = Mock()
         self.service = MacOSAudioService(
             Path("/native/ear_tuner_macos"),
-            "BlackHole2ch_UID",
-            "headphones-uid",
             Path(self.temporary.name) / "native.log",
             self.logger,
         )
@@ -100,13 +97,16 @@ class MacOSServiceTests(unittest.IsolatedAsyncioTestCase):
             "platform": "coreaudio",
             "session": "our-session",
             "pid": 1234,
+            "output_uid": "headphones-uid",
             "audio_ready": True,
         }
         with patch.object(self.service, "_read_diagnostics", return_value=diagnostics):
             self.assertTrue(await self.service.output_ready())
+            self.assertEqual(await self.service.current_output(), "headphones-uid")
             for key, bad in (
                 ("session", "another-session"),
                 ("pid", 999),
+                ("output_uid", None),
                 ("audio_ready", False),
                 ("platform", "pipewire"),
             ):
@@ -117,7 +117,7 @@ class MacOSServiceTests(unittest.IsolatedAsyncioTestCase):
             self.process.returncode = 1
             self.assertFalse(await self.service.output_ready())
 
-    async def test_start_passes_explicit_device_uids_and_waits_for_readiness(self):
+    async def test_start_follows_default_output_and_waits_for_readiness(self):
         with (
             patch(
                 "ear_tuner.macos_service.asyncio.create_subprocess_exec",
@@ -133,13 +133,10 @@ class MacOSServiceTests(unittest.IsolatedAsyncioTestCase):
             args[:5],
             (
                 "/native/ear_tuner_macos",
-                "--input",
-                "BlackHole2ch_UID",
-                "--output",
-                "headphones-uid",
+                "--session",
+                self.service._session,
             ),
         )
-        self.assertEqual(args[5:], ("--session", self.service._session))
         await self.service.execute("stop")
         self.process.terminate.assert_called_once()
         self.process.wait.assert_awaited_once()
@@ -298,8 +295,6 @@ class MacOSProcessIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.logger = Mock()
         self.service = MacOSAudioService(
             Path("/test/native"),
-            "BlackHole2ch_UID",
-            "headphones-uid",
             self.root / "native.log",
             self.logger,
         )
@@ -438,6 +433,27 @@ class MacOSProcessIntegrationTests(unittest.IsolatedAsyncioTestCase):
         finally:
             self.assertTrue(await plugin.stop())
         self.assertTrue(all(child.returncode is not None for child in self.children))
+
+    async def test_manual_stop_and_start_release_child_and_restore_controls(self):
+        settings = SettingsManager("settings", str(self.root))
+        settings.setSetting("ear_tuner", DEFAULT_EAR_TUNER | {"enabled": True})
+        self.assertTrue(await self.service.execute("start"))
+        plugin = MacOSDesktopPlugin(settings, self.service, self.logger)
+        try:
+            await plugin.restore()
+            self.assertTrue(await plugin.set_audio_service(False))
+            self.assertIsNotNone(self.children[0].returncode)
+            await asyncio.sleep(2.2)
+            self.assertEqual(len(self.children), 1)
+            self.record.unlink()
+            self.assertTrue(await plugin.set_audio_service(True))
+            self.assertEqual(len(self.children), 2)
+            self.assertEqual(
+                json.loads(self.record.read_text())["focus_enabled"], ["1"]
+            )
+            self.assertTrue(settings.getSetting("ear_tuner")["enabled"])
+        finally:
+            await plugin.stop()
 
     async def test_malformed_control_response_is_an_explicit_failure(self):
         self.assertTrue(await self.service.execute("start"))
